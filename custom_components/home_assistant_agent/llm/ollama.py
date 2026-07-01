@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import Any
@@ -117,7 +118,7 @@ class OllamaClient(LLMClient):
             ) as resp:
                 resp.raise_for_status()
                 data = await resp.json()
-        except TimeoutError as err:
+        except (TimeoutError, asyncio.TimeoutError) as err:
             _LOGGER.warning(
                 "Ollama chat timed out after %ss (model=%s, url=%s). "
                 "Increase 'Ollama request timeout' in integration settings, "

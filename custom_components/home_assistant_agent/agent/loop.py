@@ -75,6 +75,10 @@ class AgentLoop:
             _LOGGER.info("Pending checkpoint found; resuming instead of new background run")
             return await self.run_resume(reason="checkpoint")
 
+        if not self._coordinator.has_pending_changes():
+            _LOGGER.debug("No home state changes; skipping background agent run")
+            return None
+
         async with self._lock:
             self._running = True
             try:

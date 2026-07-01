@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+import asyncio
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, callback
@@ -178,6 +180,8 @@ async def _safe_background_run(agent_loop: AgentLoop) -> None:
         await agent_loop.run_background()
     except OllamaRequestError as err:
         _LOGGER.warning("Background agent run skipped: %s", err)
+    except (TimeoutError, asyncio.TimeoutError) as err:
+        _LOGGER.warning("Background agent run timed out: %s", err)
     except Exception as err:
         _LOGGER.exception("Background agent run failed: %s", err)
 
