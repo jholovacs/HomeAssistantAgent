@@ -5,11 +5,20 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from homeassistant.core import HomeAssistant
 
-from ..const import CONF_MAX_ACTIONS, CONF_MISSION_STATEMENT, EVENT_CHECKPOINT_SAVED, EVENT_RESUME, MAX_RETRIES
+from ..const import (
+    CONF_MAX_ACTIONS,
+    CONF_MISSION_STATEMENT,
+    CONF_POLL_INTERVAL,
+    DEFAULT_POLL_INTERVAL,
+    EVENT_CHECKPOINT_SAVED,
+    EVENT_RESUME,
+    MAX_RETRIES,
+)
 from ..memory.checkpoint import CheckpointStore
 from ..memory.summarizer import MemorySummarizer
 from ..memory.store import MemoryStore
@@ -60,10 +69,34 @@ class AgentLoop:
         self._checkpoint = checkpoint
         self._lock = asyncio.Lock()
         self._running = False
+        self._last_activity_ended_at: datetime | None = None
 
     @property
     def is_running(self) -> bool:
         return self._running
+
+    def _now(self) -> datetime:
+        try:
+            from homeassistant.util import dt as dt_util
+
+            return dt_util.now()
+        except ImportError:
+            from datetime import timezone
+
+            return datetime.now(timezone.utc)
+
+    def _poll_interval_seconds(self) -> int:
+        return int(self._config.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL))
+
+    def _idle_for_poll_period(self) -> bool:
+        """Return True when no agent work has run for a full poll interval."""
+        if self._last_activity_ended_at is None:
+            return True
+        elapsed = (self._now() - self._last_activity_ended_at).total_seconds()
+        return elapsed >= self._poll_interval_seconds()
+
+    def _mark_activity_ended(self) -> None:
+        self._last_activity_ended_at = self._now()
 
     def _current_time_for_prompt(self) -> str:
         try:
@@ -84,6 +117,16 @@ class AgentLoop:
         if self._checkpoint.has_pending():
             _LOGGER.info("Pending checkpoint found; resuming instead of new background run")
             return await self.run_resume(reason="checkpoint")
+
+        if not self._idle_for_poll_period():
+            elapsed = (self._now() - self._last_activity_ended_at).total_seconds()
+            _LOGGER.debug(
+                "Agent active %.0fs ago; waiting for full poll interval (%ss) "
+                "before next background LLM run",
+                elapsed,
+                self._poll_interval_seconds(),
+            )
+            return None
 
         async with self._lock:
             self._running = True
@@ -107,6 +150,7 @@ class AgentLoop:
                 )
             finally:
                 self._running = False
+                self._mark_activity_ended()
 
     async def run_resume(self, *, reason: str = "startup") -> RunResult | None:
         """Resume an interrupted run from the persisted checkpoint."""
@@ -149,6 +193,7 @@ class AgentLoop:
                 )
             finally:
                 self._running = False
+                self._mark_activity_ended()
 
     def _fire_resume_event(
         self,
@@ -186,6 +231,7 @@ class AgentLoop:
                 )
             finally:
                 self._running = False
+                self._mark_activity_ended()
 
     async def _execute_plan(
         self,

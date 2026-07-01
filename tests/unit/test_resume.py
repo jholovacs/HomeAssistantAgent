@@ -1,6 +1,7 @@
 """Tests for agent resume behavior."""
 
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -34,7 +35,7 @@ def _make_loop(checkpoint: CheckpointStore) -> AgentLoop:
     notifier.notify_significant = AsyncMock()
     return AgentLoop(
         hass,
-        {"mission_statement": "test", "max_actions_per_cycle": 5},
+        {"mission_statement": "test", "max_actions_per_cycle": 5, "poll_interval": 600},
         coordinator,
         planner,
         executor,
@@ -52,6 +53,47 @@ async def test_run_background_runs_without_state_changes():
     checkpoint = CheckpointStore(hass, "entry")
     checkpoint._store.async_load = AsyncMock(return_value=None)
     loop = _make_loop(checkpoint)
+    loop._last_activity_ended_at = None
+    loop._planner.plan_background = AsyncMock(
+        return_value=AgentPlan(
+            reasoning="All good",
+            steps=[],
+            notify_user=False,
+            response_text="",
+            summary_for_memory="",
+        )
+    )
+    loop._execute_plan = AsyncMock(
+        return_value=MagicMock(success=True, steps_executed=[], response_text="")
+    )
+
+    await loop.run_background()
+
+    loop._planner.plan_background.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_run_background_waits_for_poll_interval_after_activity():
+    hass = MagicMock()
+    checkpoint = CheckpointStore(hass, "entry")
+    checkpoint._store.async_load = AsyncMock(return_value=None)
+    loop = _make_loop(checkpoint)
+    loop._last_activity_ended_at = datetime.now(timezone.utc) - timedelta(seconds=30)
+    loop._planner.plan_background = AsyncMock()
+
+    result = await loop.run_background()
+
+    assert result is None
+    loop._planner.plan_background.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_run_background_runs_after_full_poll_interval_idle():
+    hass = MagicMock()
+    checkpoint = CheckpointStore(hass, "entry")
+    checkpoint._store.async_load = AsyncMock(return_value=None)
+    loop = _make_loop(checkpoint)
+    loop._last_activity_ended_at = datetime.now(timezone.utc) - timedelta(seconds=700)
     loop._planner.plan_background = AsyncMock(
         return_value=AgentPlan(
             reasoning="All good",
