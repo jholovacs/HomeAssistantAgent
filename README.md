@@ -9,11 +9,11 @@ An autonomous AI agent custom integration for [Home Assistant](https://www.home-
 
 | Check | Status | Tests |
 |-------|--------|-------|
-| Unit tests | **passing** | 28/28 |
+| Unit tests | **passing** | 29/29 |
 | Integration tests (Docker) | **passing** | 6/6 |
-| **Overall** | **passing** | 34/34 |
+| **Overall** | **passing** | 35/35 |
 
-Last successful CI run on `main`: 2026-07-01 20:09 UTC ([`c8b6ab5`](https://github.com/jholovacs/HomeAssistantAgent/actions/runs/28544598917))
+Last successful CI run on `main`: 2026-07-01 20:34 UTC ([`6675b92`](https://github.com/jholovacs/HomeAssistantAgent/actions/runs/28545915470))
 <!-- CI-STATUS:END -->
 
 ## Features
