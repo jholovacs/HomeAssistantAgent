@@ -2,18 +2,20 @@
   "config": {
     "step": {
       "user": {
-        "title": "Connect to Ollama",
-        "description": "Enter the base URL of your Ollama server. Home Assistant must be able to reach this address.",
+        "title": "Connect to vLLM",
+        "description": "Enter the base URL of your vLLM OpenAI-compatible server. Home Assistant must be able to reach this address.",
         "data": {
-          "ollama_url": "Ollama URL"
+          "vllm_url": "vLLM URL",
+          "vllm_api_key": "vLLM API key (optional)"
         },
         "data_description": {
-          "ollama_url": "Examples: http://127.0.0.1:11434 (same machine), http://192.168.1.50:11434 (LAN), http://host.docker.internal:11434 (Ollama on host when HA runs in Docker)."
+          "vllm_url": "Examples: http://127.0.0.1:8000 (same machine), http://192.168.1.50:8000 (LAN), http://host.docker.internal:8000 (vLLM on host when HA runs in Docker).",
+          "vllm_api_key": "Optional bearer token if your vLLM server requires authentication. Leave blank for local servers."
         }
       },
       "agent": {
         "title": "Configure Home Assistant Agent",
-        "description": "Choose a model from your Ollama server and set how the agent should behave.",
+        "description": "Choose a model served by vLLM and set how the agent should behave.",
         "data": {
           "model": "Model",
           "mission_statement": "Mission statement",
@@ -25,31 +27,31 @@
           "entity_exclude": "Entity exclude patterns (comma-separated globs)",
           "max_actions_per_cycle": "Max actions per cycle",
           "temperature": "LLM temperature",
-          "num_ctx": "LLM context window",
-          "ollama_keep_alive": "Ollama keep alive",
-          "ollama_request_timeout": "Ollama request timeout (seconds)",
+          "num_ctx": "Max output tokens",
+          "vllm_request_timeout": "vLLM request timeout (seconds)",
           "admin_mode": "Admin mode",
           "resume_on_startup": "Resume on startup",
           "announce_releases": "Announce releases"
         },
         "data_description": {
-          "model": "Models are loaded from your Ollama server. Use an instruct model with reliable JSON output (e.g. qwen2.5:7b-instruct). Run `ollama pull <model>` first if a model is missing.",
+          "model": "Models are loaded from your vLLM server. Use an instruct model with reliable JSON output (e.g. Qwen/Qwen2.5-7B-Instruct). The model name must match what vLLM was started with.",
           "mission_statement": "Describe how you want your home to behave. The agent uses this as its primary goal when acting autonomously.",
           "poll_interval": "How often the agent evaluates your home in the background.",
           "entity_include": "Optional glob patterns limiting which entities the agent may act on (e.g. light.*, climate.*). Ignored when admin mode is enabled.",
           "entity_exclude": "Optional glob patterns for entities the agent must never change.",
           "admin_mode": "When enabled, the agent can call any Home Assistant service and see all entities (except excludes). homeassistant.*, hassio.*, supervisor.*, and auth.* remain blocked.",
           "resume_on_startup": "When enabled, the agent resumes interrupted runs after Home Assistant restarts or power loss.",
-          "announce_releases": "Notify and optionally announce when you upgrade the integration or when a newer version is available on GitHub.",
-          "ollama_keep_alive": "How long Ollama keeps the model loaded in memory (e.g. 30m, 1h, -1). Longer values improve prompt cache hits between requests.",
-          "ollama_request_timeout": "Maximum seconds to wait for Ollama to finish a chat request. Increase this for slow models or large context windows (default 600)."
+          "num_ctx": "Maximum tokens vLLM may generate per request (maps to max_tokens).",
+          "vllm_request_timeout": "Maximum seconds to wait for vLLM to finish a chat request. Increase for large outputs (default 600).",
+          "announce_releases": "Notify and optionally announce when you upgrade the integration or when a newer version is available on GitHub."
         }
       },
       "reconfigure": {
         "title": "Reconfigure Home Assistant Agent",
-        "description": "Update Ollama connection, model, and agent behavior.",
+        "description": "Update vLLM connection, model, and agent behavior.",
         "data": {
-          "ollama_url": "Ollama URL",
+          "vllm_url": "vLLM URL",
+          "vllm_api_key": "vLLM API key (optional)",
           "model": "Model",
           "mission_statement": "Mission statement",
           "poll_interval": "Poll interval (seconds)",
@@ -60,16 +62,16 @@
           "entity_exclude": "Entity exclude patterns (comma-separated globs)",
           "max_actions_per_cycle": "Max actions per cycle",
           "temperature": "LLM temperature",
-          "num_ctx": "LLM context window",
-          "ollama_keep_alive": "Ollama keep alive",
-          "ollama_request_timeout": "Ollama request timeout (seconds)",
+          "num_ctx": "Max output tokens",
+          "vllm_request_timeout": "vLLM request timeout (seconds)",
           "admin_mode": "Admin mode",
           "resume_on_startup": "Resume on startup",
           "announce_releases": "Announce releases"
         },
         "data_description": {
-          "ollama_url": "Must be reachable from the Home Assistant host.",
-          "model": "Models are loaded live from your Ollama server.",
+          "vllm_url": "Must be reachable from the Home Assistant host.",
+          "vllm_api_key": "Optional bearer token for authenticated vLLM servers.",
+          "model": "Models are loaded live from your vLLM server.",
           "mission_statement": "Describe how you want your home to behave.",
           "poll_interval": "How often the agent evaluates your home in the background.",
           "entity_include": "Optional glob patterns limiting which entities the agent may act on. Ignored when admin mode is enabled.",
@@ -81,9 +83,9 @@
       }
     },
     "error": {
-      "cannot_connect": "Failed to connect to Ollama. Check the URL, firewall, and that Ollama is running (`ollama serve`).",
-      "model_not_found": "The selected model is no longer available on the Ollama server.",
-      "no_models": "Ollama is reachable but returned no models. Pull a model first, e.g. `ollama pull qwen2.5:7b-instruct`."
+      "cannot_connect": "Failed to connect to vLLM. Check the URL, firewall, and that the server is running.",
+      "model_not_found": "The selected model is no longer served by vLLM.",
+      "no_models": "vLLM is reachable but returned no models. Start vLLM with a model, e.g. vllm serve Qwen/Qwen2.5-7B-Instruct."
     },
     "abort": {
       "already_configured": "Already configured."
@@ -93,9 +95,10 @@
     "step": {
       "init": {
         "title": "Home Assistant Agent settings",
-        "description": "Update Ollama connection, model, and agent behavior.",
+        "description": "Update vLLM connection, model, and agent behavior.",
         "data": {
-          "ollama_url": "Ollama URL",
+          "vllm_url": "vLLM URL",
+          "vllm_api_key": "vLLM API key (optional)",
           "model": "Model",
           "mission_statement": "Mission statement",
           "poll_interval": "Poll interval (seconds)",
@@ -106,32 +109,32 @@
           "entity_exclude": "Entity exclude patterns (comma-separated globs)",
           "max_actions_per_cycle": "Max actions per cycle",
           "temperature": "LLM temperature",
-          "num_ctx": "LLM context window",
-          "ollama_keep_alive": "Ollama keep alive",
-          "ollama_request_timeout": "Ollama request timeout (seconds)",
+          "num_ctx": "Max output tokens",
+          "vllm_request_timeout": "vLLM request timeout (seconds)",
           "admin_mode": "Admin mode",
           "resume_on_startup": "Resume on startup",
           "announce_releases": "Announce releases"
         },
         "data_description": {
-          "ollama_url": "Must be reachable from the Home Assistant host.",
-          "model": "Pick from models currently installed on your Ollama server.",
+          "vllm_url": "Must be reachable from the Home Assistant host.",
+          "vllm_api_key": "Optional bearer token for authenticated vLLM servers.",
+          "model": "Pick from models currently served by vLLM.",
           "mission_statement": "Describe how you want your home to behave.",
           "poll_interval": "How often the agent evaluates your home in the background.",
           "entity_include": "Optional glob patterns limiting which entities the agent may act on. Ignored when admin mode is enabled.",
           "entity_exclude": "Optional glob patterns for entities the agent must never change.",
           "admin_mode": "When enabled, the agent can call any Home Assistant service and see all entities (except excludes).",
           "resume_on_startup": "Resume interrupted agent runs after Home Assistant restarts.",
-          "announce_releases": "Notify when you upgrade or when a newer version is available on GitHub.",
-          "ollama_keep_alive": "How long Ollama keeps the model loaded (e.g. 30m, 1h, -1 for forever).",
-          "ollama_request_timeout": "Maximum seconds to wait for Ollama responses (default 600)."
+          "num_ctx": "Maximum tokens vLLM may generate per request.",
+          "vllm_request_timeout": "Maximum seconds to wait for vLLM responses (default 600).",
+          "announce_releases": "Notify when you upgrade or when a newer version is available on GitHub."
         }
       }
     },
     "error": {
-      "cannot_connect": "Failed to connect to Ollama. Check the URL, firewall, and that Ollama is running.",
-      "no_models": "No models found on the Ollama server. Pull a model with `ollama pull` and try again.",
-      "model_not_found": "The selected model is no longer available on the Ollama server."
+      "cannot_connect": "Failed to connect to vLLM. Check the URL, firewall, and that the server is running.",
+      "no_models": "No models found on the vLLM server. Start vLLM with a model and try again.",
+      "model_not_found": "The selected model is no longer served by vLLM."
     }
   }
 }

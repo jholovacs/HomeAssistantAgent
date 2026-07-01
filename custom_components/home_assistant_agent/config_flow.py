@@ -23,12 +23,12 @@ from .const import (
     CONF_MODEL,
     CONF_NOTIFY_SERVICES,
     CONF_NUM_CTX,
-    CONF_OLLAMA_KEEP_ALIVE,
-    CONF_OLLAMA_REQUEST_TIMEOUT,
-    CONF_OLLAMA_URL,
     CONF_POLL_INTERVAL,
     CONF_RESUME_ON_STARTUP,
     CONF_TEMPERATURE,
+    CONF_VLLM_API_KEY,
+    CONF_VLLM_REQUEST_TIMEOUT,
+    CONF_VLLM_URL,
     CONF_WYOMING_PORT,
     DEFAULT_ADMIN_MODE,
     DEFAULT_ANNOUNCE_RELEASES,
@@ -36,22 +36,23 @@ from .const import (
     DEFAULT_MISSION_STATEMENT,
     DEFAULT_MODEL,
     DEFAULT_NUM_CTX,
-    DEFAULT_OLLAMA_KEEP_ALIVE,
-    DEFAULT_OLLAMA_REQUEST_TIMEOUT,
-    DEFAULT_OLLAMA_URL,
     DEFAULT_POLL_INTERVAL,
     DEFAULT_RESUME_ON_STARTUP,
     DEFAULT_TEMPERATURE,
+    DEFAULT_VLLM_REQUEST_TIMEOUT,
+    DEFAULT_VLLM_URL,
     DEFAULT_WYOMING_PORT,
     DOMAIN,
+    migrate_legacy_config,
 )
-from .llm.ollama import OllamaClient
+from .llm.vllm import VllmClient
 
 _LOGGER = logging.getLogger(__name__)
 
-OLLAMA_STEP_SCHEMA = vol.Schema(
+VLLM_STEP_SCHEMA = vol.Schema(
     {
-        vol.Required(CONF_OLLAMA_URL, default=DEFAULT_OLLAMA_URL): str,
+        vol.Required(CONF_VLLM_URL, default=DEFAULT_VLLM_URL): str,
+        vol.Optional(CONF_VLLM_API_KEY, default=""): str,
     }
 )
 
@@ -62,8 +63,14 @@ def _parse_list(value: str) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+def _migrate_legacy_keys(data: dict) -> dict:
+    """Map Ollama config keys to vLLM equivalents."""
+    return migrate_legacy_config(data)
+
+
 def _normalize_entry(data: dict) -> dict:
     """Normalize config entry data."""
+    data = _migrate_legacy_keys(data)
     result = dict(data)
     result[CONF_NOTIFY_SERVICES] = _parse_list(data.get(CONF_NOTIFY_SERVICES, ""))
     result[CONF_ENTITY_INCLUDE] = _parse_list(data.get(CONF_ENTITY_INCLUDE, ""))
@@ -77,17 +84,17 @@ def _normalize_entry(data: dict) -> dict:
     result[CONF_ANNOUNCE_RELEASES] = bool(
         data.get(CONF_ANNOUNCE_RELEASES, DEFAULT_ANNOUNCE_RELEASES)
     )
-    keep_alive = data.get(CONF_OLLAMA_KEEP_ALIVE, DEFAULT_OLLAMA_KEEP_ALIVE)
-    result[CONF_OLLAMA_KEEP_ALIVE] = str(keep_alive).strip() or DEFAULT_OLLAMA_KEEP_ALIVE
-    result[CONF_OLLAMA_REQUEST_TIMEOUT] = int(
-        data.get(CONF_OLLAMA_REQUEST_TIMEOUT, DEFAULT_OLLAMA_REQUEST_TIMEOUT)
+    api_key = data.get(CONF_VLLM_API_KEY, "")
+    result[CONF_VLLM_API_KEY] = api_key.strip() if api_key else None
+    result[CONF_VLLM_REQUEST_TIMEOUT] = int(
+        data.get(CONF_VLLM_REQUEST_TIMEOUT, DEFAULT_VLLM_REQUEST_TIMEOUT)
     )
     return result
 
 
 def _entry_config(config_entry: config_entries.ConfigEntry) -> dict[str, Any]:
     """Return merged config entry data and options."""
-    return {**config_entry.data, **config_entry.options}
+    return _migrate_legacy_keys({**config_entry.data, **config_entry.options})
 
 
 def _agent_settings_schema(models: list[str], defaults: dict | None = None) -> vol.Schema:
@@ -137,14 +144,10 @@ def _agent_settings_schema(models: list[str], defaults: dict | None = None) -> v
                 CONF_NUM_CTX,
                 default=defaults.get(CONF_NUM_CTX, DEFAULT_NUM_CTX),
             ): cv.positive_int,
-            vol.Optional(
-                CONF_OLLAMA_KEEP_ALIVE,
-                default=defaults.get(CONF_OLLAMA_KEEP_ALIVE, DEFAULT_OLLAMA_KEEP_ALIVE),
-            ): str,
             vol.Required(
-                CONF_OLLAMA_REQUEST_TIMEOUT,
+                CONF_VLLM_REQUEST_TIMEOUT,
                 default=defaults.get(
-                    CONF_OLLAMA_REQUEST_TIMEOUT, DEFAULT_OLLAMA_REQUEST_TIMEOUT
+                    CONF_VLLM_REQUEST_TIMEOUT, DEFAULT_VLLM_REQUEST_TIMEOUT
                 ),
             ): cv.positive_int,
             vol.Optional(
@@ -169,20 +172,50 @@ def _full_settings_schema(models: list[str], defaults: dict | None = None) -> vo
     return vol.Schema(
         {
             vol.Required(
-                CONF_OLLAMA_URL,
-                default=defaults.get(CONF_OLLAMA_URL, DEFAULT_OLLAMA_URL),
+                CONF_VLLM_URL,
+                default=defaults.get(CONF_VLLM_URL, DEFAULT_VLLM_URL),
+            ): str,
+            vol.Optional(
+                CONF_VLLM_API_KEY,
+                default=defaults.get(CONF_VLLM_API_KEY) or "",
             ): str,
             **_agent_settings_schema(models, defaults).schema,
         }
     )
 
 
-async def _discover_models(hass, ollama_url: str, current_model: str) -> tuple[list[str], str | None]:
-    """Fetch models from Ollama; return models and optional error key."""
-    client = OllamaClient(
-        ollama_url,
-        current_model or DEFAULT_MODEL,
+def _build_client(
+    hass,
+    *,
+    base_url: str,
+    model: str,
+    temperature: float = DEFAULT_TEMPERATURE,
+    num_ctx: int = DEFAULT_NUM_CTX,
+    api_key: str | None = None,
+) -> VllmClient:
+    return VllmClient(
+        base_url,
+        model,
+        temperature=temperature,
+        num_ctx=num_ctx,
+        api_key=api_key,
         session=async_get_clientsession(hass),
+    )
+
+
+async def _discover_models(
+    hass,
+    vllm_url: str,
+    current_model: str,
+    *,
+    api_key: str | None = None,
+) -> tuple[list[str], str | None]:
+    """Fetch models from vLLM; return models and optional error key."""
+    client = _build_client(
+        hass,
+        base_url=vllm_url,
+        model=current_model or DEFAULT_MODEL,
+        api_key=api_key,
     )
     if not await client.health_check():
         return [], "cannot_connect"
@@ -202,12 +235,14 @@ async def _validate_submission(
     models: list[str],
 ) -> str | None:
     """Validate submitted settings; return error key or None."""
-    client = OllamaClient(
-        user_input[CONF_OLLAMA_URL],
-        user_input[CONF_MODEL],
+    api_key = user_input.get(CONF_VLLM_API_KEY) or None
+    client = _build_client(
+        hass,
+        base_url=user_input[CONF_VLLM_URL],
+        model=user_input[CONF_MODEL],
         temperature=user_input[CONF_TEMPERATURE],
         num_ctx=user_input[CONF_NUM_CTX],
-        session=async_get_clientsession(hass),
+        api_key=api_key,
     )
     if not await client.health_check():
         return "cannot_connect"
@@ -219,21 +254,35 @@ async def _validate_submission(
 class HomeAssistantAgentConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Home Assistant Agent."""
 
-    VERSION = 1
+    VERSION = 2
 
     def __init__(self) -> None:
-        self._ollama_url: str = DEFAULT_OLLAMA_URL
+        self._vllm_url: str = DEFAULT_VLLM_URL
+        self._vllm_api_key: str | None = None
         self._models: list[str] = []
 
+    @staticmethod
+    @callback
+    def async_migrate_entry(hass: HomeAssistant, config_entry: config_entries.ConfigEntry):
+        """Migrate config entry from Ollama to vLLM keys."""
+        if config_entry.version >= 2:
+            return True
+
+        data = _migrate_legacy_keys(dict(config_entry.data))
+        hass.config_entries.async_update_entry(config_entry, data=data, version=2)
+        return True
+
     async def async_step_user(self, user_input=None):
-        """Step 1: connect to Ollama and discover models."""
+        """Step 1: connect to vLLM and discover models."""
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            client = OllamaClient(
-                user_input[CONF_OLLAMA_URL],
-                DEFAULT_MODEL,
-                session=async_get_clientsession(self.hass),
+            api_key = user_input.get(CONF_VLLM_API_KEY) or None
+            client = _build_client(
+                self.hass,
+                base_url=user_input[CONF_VLLM_URL],
+                model=DEFAULT_MODEL,
+                api_key=api_key,
             )
             if not await client.health_check():
                 errors["base"] = "cannot_connect"
@@ -242,12 +291,13 @@ class HomeAssistantAgentConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 if not self._models:
                     errors["base"] = "no_models"
                 else:
-                    self._ollama_url = user_input[CONF_OLLAMA_URL]
+                    self._vllm_url = user_input[CONF_VLLM_URL]
+                    self._vllm_api_key = api_key
                     return await self.async_step_agent()
 
         return self.async_show_form(
             step_id="user",
-            data_schema=OLLAMA_STEP_SCHEMA,
+            data_schema=VLLM_STEP_SCHEMA,
             errors=errors,
         )
 
@@ -256,7 +306,11 @@ class HomeAssistantAgentConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            user_input = {**user_input, CONF_OLLAMA_URL: self._ollama_url}
+            user_input = {
+                **user_input,
+                CONF_VLLM_URL: self._vllm_url,
+                CONF_VLLM_API_KEY: self._vllm_api_key or "",
+            }
             if error := await _validate_submission(self.hass, user_input, self._models):
                 errors["base"] = error
             else:
@@ -278,15 +332,21 @@ class HomeAssistantAgentConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         entry = self._get_reconfigure_entry()
         defaults = _entry_config(entry)
         errors: dict[str, str] = {}
-        ollama_url = (
-            user_input.get(CONF_OLLAMA_URL, defaults.get(CONF_OLLAMA_URL, DEFAULT_OLLAMA_URL))
+        vllm_url = (
+            user_input.get(CONF_VLLM_URL, defaults.get(CONF_VLLM_URL, DEFAULT_VLLM_URL))
             if user_input
-            else defaults.get(CONF_OLLAMA_URL, DEFAULT_OLLAMA_URL)
+            else defaults.get(CONF_VLLM_URL, DEFAULT_VLLM_URL)
+        )
+        api_key = (
+            user_input.get(CONF_VLLM_API_KEY, defaults.get(CONF_VLLM_API_KEY) or "")
+            if user_input
+            else defaults.get(CONF_VLLM_API_KEY)
         )
         models, discover_error = await _discover_models(
             self.hass,
-            ollama_url,
+            vllm_url,
             defaults.get(CONF_MODEL, DEFAULT_MODEL),
+            api_key=api_key or None,
         )
 
         if user_input is not None:
@@ -326,15 +386,21 @@ class HomeAssistantAgentOptionsFlow(config_entries.OptionsFlow):
         """Show all settings on one form."""
         defaults = _entry_config(self.config_entry)
         errors: dict[str, str] = {}
-        ollama_url = (
-            user_input.get(CONF_OLLAMA_URL, defaults.get(CONF_OLLAMA_URL, DEFAULT_OLLAMA_URL))
+        vllm_url = (
+            user_input.get(CONF_VLLM_URL, defaults.get(CONF_VLLM_URL, DEFAULT_VLLM_URL))
             if user_input
-            else defaults.get(CONF_OLLAMA_URL, DEFAULT_OLLAMA_URL)
+            else defaults.get(CONF_VLLM_URL, DEFAULT_VLLM_URL)
+        )
+        api_key = (
+            user_input.get(CONF_VLLM_API_KEY, defaults.get(CONF_VLLM_API_KEY) or "")
+            if user_input
+            else defaults.get(CONF_VLLM_API_KEY)
         )
         models, discover_error = await _discover_models(
             self.hass,
-            ollama_url,
+            vllm_url,
             defaults.get(CONF_MODEL, DEFAULT_MODEL),
+            api_key=api_key or None,
         )
 
         if user_input is not None:

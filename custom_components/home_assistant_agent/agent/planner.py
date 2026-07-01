@@ -9,7 +9,7 @@ from typing import Any
 
 from ..const import CONF_ADMIN_MODE
 from ..llm.base import LLMClient
-from ..llm.errors import OllamaRequestError
+from ..llm.errors import LLMRequestError
 from .prompts import (
     BACKGROUND_USER_PROMPT,
     CONVERSATION_USER_PROMPT,
@@ -187,17 +187,17 @@ class Planner:
         ]
         try:
             content = await self._llm.chat(messages, json_mode=True)
-        except OllamaRequestError as err:
+        except LLMRequestError as err:
             _LOGGER.warning("LLM plan request failed: %s", err)
             return AgentPlan(
-                reasoning="The Ollama request failed or timed out before a plan could be created.",
+                reasoning="The vLLM request failed or timed out before a plan could be created.",
                 steps=[],
                 notify_user=False,
                 response_text=(
                     "Sorry, the AI model took too long to respond. "
-                    "Try again or increase the Ollama request timeout in settings."
+                    "Try again or increase the vLLM request timeout in settings."
                 ),
-                summary_for_memory="Ollama request failed or timed out.",
+                summary_for_memory="vLLM request failed or timed out.",
             )
         return self._parse_plan(content, known_entity_ids)
 

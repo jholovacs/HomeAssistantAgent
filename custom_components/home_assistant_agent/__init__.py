@@ -21,16 +21,19 @@ from .agent.verifier import Verifier
 from .const import (
     CONF_ANNOUNCE_RELEASES,
     CONF_MISSION_STATEMENT,
-    CONF_OLLAMA_KEEP_ALIVE,
-    CONF_OLLAMA_REQUEST_TIMEOUT,
     CONF_RESUME_ON_STARTUP,
+    CONF_VLLM_API_KEY,
+    CONF_VLLM_REQUEST_TIMEOUT,
+    CONF_VLLM_URL,
     CONF_WYOMING_PORT,
     DEFAULT_ANNOUNCE_RELEASES,
+    DEFAULT_VLLM_REQUEST_TIMEOUT,
     DOMAIN,
+    migrate_legacy_config,
 )
-from .llm.errors import OllamaRequestError
+from .llm.errors import LLMRequestError
 from .coordinator import StateCoordinator
-from .llm.ollama import OllamaClient
+from .llm.vllm import VllmClient
 from .memory.checkpoint import CheckpointStore
 from .memory.store import MemoryStore
 from .memory.summarizer import MemorySummarizer
@@ -47,7 +50,7 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
 def _merged_config(entry: ConfigEntry) -> dict[str, Any]:
-    return {**entry.data, **entry.options}
+    return migrate_legacy_config({**entry.data, **entry.options})
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -59,13 +62,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Home Assistant Agent from a config entry."""
     config = _merged_config(entry)
 
-    llm = OllamaClient(
-        config["ollama_url"],
+    llm = VllmClient(
+        config[CONF_VLLM_URL],
         config["model"],
         temperature=config.get("temperature", 0.3),
         num_ctx=config.get("num_ctx", 8192),
-        keep_alive=config.get(CONF_OLLAMA_KEEP_ALIVE, "30m"),
-        request_timeout=config.get(CONF_OLLAMA_REQUEST_TIMEOUT, 600),
+        api_key=config.get(CONF_VLLM_API_KEY),
+        request_timeout=config.get(CONF_VLLM_REQUEST_TIMEOUT, DEFAULT_VLLM_REQUEST_TIMEOUT),
         session=async_get_clientsession(hass),
     )
 
@@ -178,7 +181,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def _safe_background_run(agent_loop: AgentLoop) -> None:
     try:
         await agent_loop.run_background()
-    except OllamaRequestError as err:
+    except LLMRequestError as err:
         _LOGGER.warning("Background agent run skipped: %s", err)
     except (TimeoutError, asyncio.TimeoutError) as err:
         _LOGGER.warning("Background agent run timed out: %s", err)
@@ -200,7 +203,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if wyoming:
         await wyoming.stop()
 
-    llm: OllamaClient | None = data.get("llm")
+    llm: VllmClient | None = data.get("llm")
     if llm:
         await llm.close()
 

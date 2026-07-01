@@ -10,12 +10,12 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "custom_components"))
 
 from home_assistant_agent.agent.planner import Planner
-from home_assistant_agent.llm.ollama import OllamaClient
+from home_assistant_agent.llm.vllm import VllmClient
 
 
 @pytest.fixture
 def planner():
-    llm = OllamaClient("http://localhost:11434", "test")
+    llm = VllmClient("http://localhost:8000", "test")
     return Planner(llm, {})
 
 
@@ -80,7 +80,7 @@ def test_parse_blocks_disallowed_service(planner):
 
 
 def test_parse_allows_extra_domains_in_admin_mode():
-    llm = OllamaClient("http://localhost:11434", "test")
+    llm = VllmClient("http://localhost:8000", "test")
     admin_planner = Planner(llm, {"admin_mode": True})
     content = json.dumps(
         {

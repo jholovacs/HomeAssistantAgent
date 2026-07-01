@@ -1,4 +1,4 @@
-"""Ollama HTTP client."""
+"""vLLM OpenAI-compatible HTTP client."""
 
 from __future__ import annotations
 
@@ -10,14 +10,14 @@ from typing import Any
 import aiohttp
 
 from .base import LLMClient
-from .errors import OllamaRequestError, OllamaTimeoutError
+from .errors import LLMRequestError, LLMTimeoutError
 from .prompt_log import log_llm_request, log_llm_response
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class OllamaClient(LLMClient):
-    """Client for Ollama's REST API."""
+class VllmClient(LLMClient):
+    """Client for vLLM's OpenAI-compatible REST API."""
 
     def __init__(
         self,
@@ -26,18 +26,29 @@ class OllamaClient(LLMClient):
         *,
         temperature: float = 0.3,
         num_ctx: int = 8192,
-        keep_alive: str | int = "30m",
+        api_key: str | None = None,
         request_timeout: int = 600,
         session: aiohttp.ClientSession | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._model = model
         self._temperature = temperature
-        self._num_ctx = num_ctx
-        self._keep_alive = keep_alive
+        self._max_tokens = num_ctx
+        self._api_key = (api_key or "").strip() or None
         self._request_timeout = request_timeout
         self._session = session
         self._owns_session = session is None
+
+    def _api_base(self) -> str:
+        if self._base_url.endswith("/v1"):
+            return self._base_url
+        return f"{self._base_url}/v1"
+
+    def _headers(self) -> dict[str, str]:
+        headers = {"Content-Type": "application/json"}
+        if self._api_key:
+            headers["Authorization"] = f"Bearer {self._api_key}"
+        return headers
 
     async def _get_session(self) -> aiohttp.ClientSession:
         if self._session is None:
@@ -58,29 +69,36 @@ class OllamaClient(LLMClient):
             sock_read=self._request_timeout,
         )
 
+    def _short_timeout(self) -> aiohttp.ClientTimeout:
+        return aiohttp.ClientTimeout(total=10)
+
     async def health_check(self) -> bool:
-        """Return True if Ollama is reachable."""
-        try:
-            session = await self._get_session()
-            async with session.get(
-                f"{self._base_url}/api/tags",
-                timeout=aiohttp.ClientTimeout(total=10),
-            ) as resp:
-                return resp.status == 200
-        except (aiohttp.ClientError, TimeoutError) as err:
-            _LOGGER.debug("Ollama health check failed: %s", err)
-            return False
+        """Return True if the vLLM server is reachable."""
+        session = await self._get_session()
+        for url in (f"{self._api_base()}/models", f"{self._base_url}/health"):
+            try:
+                async with session.get(
+                    url,
+                    headers=self._headers(),
+                    timeout=self._short_timeout(),
+                ) as resp:
+                    if resp.status == 200:
+                        return True
+            except (aiohttp.ClientError, TimeoutError) as err:
+                _LOGGER.debug("vLLM health check failed for %s: %s", url, err)
+        return False
 
     async def list_models(self) -> list[str]:
-        """Return model names from Ollama."""
+        """Return model IDs served by vLLM."""
         session = await self._get_session()
         async with session.get(
-            f"{self._base_url}/api/tags",
-            timeout=aiohttp.ClientTimeout(total=10),
+            f"{self._api_base()}/models",
+            headers=self._headers(),
+            timeout=self._short_timeout(),
         ) as resp:
             resp.raise_for_status()
             data = await resp.json()
-        return [m["name"] for m in data.get("models", [])]
+        return [model["id"] for model in data.get("data", []) if model.get("id")]
 
     async def chat(
         self,
@@ -88,19 +106,16 @@ class OllamaClient(LLMClient):
         *,
         json_mode: bool = False,
     ) -> str:
-        """Send chat completion to Ollama."""
+        """Send a chat completion request to vLLM."""
         payload: dict[str, Any] = {
             "model": self._model,
             "messages": messages,
+            "temperature": self._temperature,
+            "max_tokens": self._max_tokens,
             "stream": False,
-            "keep_alive": self._keep_alive,
-            "options": {
-                "temperature": self._temperature,
-                "num_ctx": self._num_ctx,
-            },
         }
         if json_mode:
-            payload["format"] = "json"
+            payload["response_format"] = {"type": "json_object"}
 
         log_llm_request(
             _LOGGER,
@@ -112,42 +127,47 @@ class OllamaClient(LLMClient):
         session = await self._get_session()
         try:
             async with session.post(
-                f"{self._base_url}/api/chat",
+                f"{self._api_base()}/chat/completions",
                 json=payload,
+                headers=self._headers(),
                 timeout=self._chat_timeout(),
             ) as resp:
                 resp.raise_for_status()
                 data = await resp.json()
         except (TimeoutError, asyncio.TimeoutError) as err:
             _LOGGER.warning(
-                "Ollama chat timed out after %ss (model=%s, url=%s). "
-                "Increase 'Ollama request timeout' in integration settings, "
-                "use a smaller model, or reduce context size.",
+                "vLLM chat timed out after %ss (model=%s, url=%s). "
+                "Increase 'vLLM request timeout' in integration settings "
+                "or reduce max output tokens.",
                 self._request_timeout,
                 self._model,
                 self._base_url,
             )
-            raise OllamaTimeoutError(
-                f"Ollama chat timed out after {self._request_timeout}s"
+            raise LLMTimeoutError(
+                f"vLLM chat timed out after {self._request_timeout}s"
             ) from err
         except aiohttp.ClientError as err:
             _LOGGER.warning(
-                "Ollama chat request failed (model=%s, url=%s): %s",
+                "vLLM chat request failed (model=%s, url=%s): %s",
                 self._model,
                 self._base_url,
                 err,
             )
-            raise OllamaRequestError(str(err)) from err
+            raise LLMRequestError(str(err)) from err
 
-        message = data.get("message", {})
-        content = message.get("content", "")
+        choices = data.get("choices") or []
+        if not choices:
+            raise LLMRequestError("vLLM returned no completion choices")
+
+        content = choices[0].get("message", {}).get("content", "")
+        usage = data.get("usage") or {}
         log_llm_response(
             _LOGGER,
             model=self._model,
             content=content,
             metadata={
-                "total_duration_ms": data.get("total_duration"),
-                "eval_count": data.get("eval_count"),
+                "prompt_tokens": usage.get("prompt_tokens"),
+                "completion_tokens": usage.get("completion_tokens"),
             },
         )
         return content

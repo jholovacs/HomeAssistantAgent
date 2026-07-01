@@ -2,7 +2,8 @@
 
 DOMAIN = "home_assistant_agent"
 
-CONF_OLLAMA_URL = "ollama_url"
+CONF_VLLM_URL = "vllm_url"
+CONF_VLLM_API_KEY = "vllm_api_key"
 CONF_MODEL = "model"
 CONF_MISSION_STATEMENT = "mission_statement"
 CONF_POLL_INTERVAL = "poll_interval"
@@ -16,9 +17,24 @@ CONF_RESUME_ON_STARTUP = "resume_on_startup"
 CONF_MAX_ACTIONS = "max_actions_per_cycle"
 CONF_TEMPERATURE = "temperature"
 CONF_NUM_CTX = "num_ctx"
-CONF_OLLAMA_KEEP_ALIVE = "ollama_keep_alive"
-CONF_OLLAMA_REQUEST_TIMEOUT = "ollama_request_timeout"
+CONF_VLLM_REQUEST_TIMEOUT = "vllm_request_timeout"
 CONF_ANNOUNCE_RELEASES = "announce_releases"
+
+# Legacy keys migrated from Ollama (v1 config entries).
+LEGACY_CONF_OLLAMA_URL = "ollama_url"
+LEGACY_CONF_OLLAMA_REQUEST_TIMEOUT = "ollama_request_timeout"
+
+
+def migrate_legacy_config(data: dict) -> dict:
+    """Map Ollama config keys to vLLM equivalents."""
+    result = dict(data)
+    if LEGACY_CONF_OLLAMA_URL in result and CONF_VLLM_URL not in result:
+        result[CONF_VLLM_URL] = result.pop(LEGACY_CONF_OLLAMA_URL)
+    if LEGACY_CONF_OLLAMA_REQUEST_TIMEOUT in result and CONF_VLLM_REQUEST_TIMEOUT not in result:
+        result[CONF_VLLM_REQUEST_TIMEOUT] = result.pop(LEGACY_CONF_OLLAMA_REQUEST_TIMEOUT)
+    result.pop("ollama_keep_alive", None)
+    return result
+
 
 GITHUB_REPO = "jholovacs/HomeAssistantAgent"
 GITHUB_API_RELEASES_LATEST = (
@@ -26,15 +42,14 @@ GITHUB_API_RELEASES_LATEST = (
 )
 DEFAULT_RELEASE_CHECK_INTERVAL = 21600  # 6 hours
 
-DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434"
-DEFAULT_MODEL = "qwen2.5:7b-instruct"
+DEFAULT_VLLM_URL = "http://127.0.0.1:8000"
+DEFAULT_MODEL = "Qwen/Qwen2.5-7B-Instruct"
 DEFAULT_POLL_INTERVAL = 600
 DEFAULT_WYOMING_PORT = 10500
 DEFAULT_MAX_ACTIONS = 10
 DEFAULT_TEMPERATURE = 0.3
 DEFAULT_NUM_CTX = 8192
-DEFAULT_OLLAMA_KEEP_ALIVE = "30m"
-DEFAULT_OLLAMA_REQUEST_TIMEOUT = 600
+DEFAULT_VLLM_REQUEST_TIMEOUT = 600
 DEFAULT_ANNOUNCE_RELEASES = True
 DEFAULT_ADMIN_MODE = False
 DEFAULT_RESUME_ON_STARTUP = True

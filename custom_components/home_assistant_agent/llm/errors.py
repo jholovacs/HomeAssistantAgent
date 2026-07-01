@@ -1,9 +1,14 @@
-"""Ollama client errors."""
+"""LLM client errors."""
 
 
-class OllamaRequestError(Exception):
-    """Base error for Ollama HTTP failures."""
+class LLMRequestError(Exception):
+    """Base error for LLM HTTP failures."""
 
 
-class OllamaTimeoutError(OllamaRequestError):
-    """Raised when an Ollama request exceeds the configured timeout."""
+class LLMTimeoutError(LLMRequestError):
+    """Raised when an LLM request exceeds the configured timeout."""
+
+
+# Backward-compatible aliases (removed in a future release).
+OllamaRequestError = LLMRequestError
+OllamaTimeoutError = LLMTimeoutError

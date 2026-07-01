@@ -22,7 +22,7 @@ import pytest_asyncio
 
 from .helpers import (
     HA_URL,
-    OLLAMA_MOCK_URL,
+    VLLM_MOCK_URL,
     complete_onboarding,
     get_access_token,
     get_config_entries,
@@ -63,7 +63,7 @@ def integration_stack():
 async def ha_session(integration_stack):
     """Authenticated aiohttp session against Home Assistant."""
     await wait_for_url(f"{HA_URL}/api/")
-    await wait_for_url(f"{OLLAMA_MOCK_URL}/api/tags")
+    await wait_for_url(f"{VLLM_MOCK_URL}/health")
 
     session = aiohttp.ClientSession()
     try:
@@ -79,8 +79,8 @@ async def ha_session(integration_stack):
 async def integration_entry(ha_session):
     """Ensure the Home Assistant Agent integration is configured."""
     session, token = ha_session
-    ollama_url = os.environ.get("HA_OLLAMA_URL", "http://ollama-mock:11434")
-    entry_id = await setup_integration_via_flow(session, token, ollama_url=ollama_url)
+    vllm_url = os.environ.get("HA_VLLM_URL", "http://vllm-mock:8000")
+    entry_id = await setup_integration_via_flow(session, token, vllm_url=vllm_url)
     # Allow setup_entry to finish (Wyoming server, coordinator refresh).
     time.sleep(8)
     entries = await get_config_entries(session, token)

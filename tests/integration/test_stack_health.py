@@ -7,7 +7,7 @@ from wyoming.info import Describe, Info
 from wyoming.intent import Recognize
 from wyoming.ping import Ping, Pong
 
-from .helpers import HA_URL, OLLAMA_MOCK_URL, WYOMING_HOST, WYOMING_PORT, wait_for_url
+from .helpers import HA_URL, VLLM_MOCK_URL, WYOMING_HOST, WYOMING_PORT, wait_for_url
 
 pytestmark = pytest.mark.integration
 
@@ -18,8 +18,8 @@ async def test_home_assistant_api_is_up(integration_stack):
 
 
 @pytest.mark.asyncio
-async def test_ollama_mock_is_up(integration_stack):
-    await wait_for_url(f"{OLLAMA_MOCK_URL}/api/tags")
+async def test_vllm_mock_is_up(integration_stack):
+    await wait_for_url(f"{VLLM_MOCK_URL}/health")
 
 
 @pytest.mark.asyncio

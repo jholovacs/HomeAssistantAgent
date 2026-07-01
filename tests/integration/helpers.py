@@ -12,7 +12,7 @@ import aiohttp
 
 HA_URL = os.environ.get("HA_URL", "http://127.0.0.1:8123").rstrip("/")
 HA_WS_URL = os.environ.get("HA_WS_URL", HA_URL.replace("http", "ws") + "/api/websocket")
-OLLAMA_MOCK_URL = os.environ.get("OLLAMA_MOCK_URL", "http://127.0.0.1:11434").rstrip("/")
+VLLM_MOCK_URL = os.environ.get("VLLM_MOCK_URL", "http://127.0.0.1:8000").rstrip("/")
 WYOMING_HOST = os.environ.get("WYOMING_HOST", "127.0.0.1")
 WYOMING_PORT = int(os.environ.get("WYOMING_PORT", "10500"))
 TEST_USERNAME = os.environ.get("HA_TEST_USERNAME", "integration")
@@ -298,7 +298,7 @@ async def setup_integration_via_flow(
     session: aiohttp.ClientSession,
     token: str,
     *,
-    ollama_url: str,
+    vllm_url: str,
 ) -> str:
     """Create the integration via REST config flow; return entry_id."""
     headers = {"Authorization": f"Bearer {token}"}
@@ -337,15 +337,15 @@ async def setup_integration_via_flow(
 
             flow_id = step["flow_id"]
 
-            # Step 1: Ollama URL
+            # Step 1: vLLM URL
             async with session.post(
                 f"{HA_URL}/api/config/config_entries/flow/{flow_id}",
                 headers=headers,
-                json={"ollama_url": ollama_url},
+                json={"vllm_url": vllm_url, "vllm_api_key": ""},
             ) as resp:
                 if resp.status != 200:
                     body = await resp.text()
-                    raise HaApiError(f"Flow submit (ollama) failed ({resp.status}): {body}")
+                    raise HaApiError(f"Flow submit (vllm) failed ({resp.status}): {body}")
                 step = await resp.json()
 
             # Step 2: agent settings (if not already complete)

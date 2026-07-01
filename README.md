@@ -19,7 +19,7 @@ Last successful CI run on `main`: 2026-07-01 23:15 UTC ([`6620f3c`](https://gith
 ## Features
 
 - **Autonomous agent loop** — plan → execute → verify → retry
-- **Ollama LLM** — configurable URL and model (direct HTTP, no cloud required)
+- **vLLM inference** — OpenAI-compatible API (`/v1/chat/completions`) for GPU-accelerated local models
 - **Mission statement** — defines how you want your home to behave
 - **Persistent memory** — summarized history for future prompt context
 - **Periodic polling** — watches entities, automations, scenes, and scripts
@@ -30,38 +30,32 @@ Last successful CI run on `main`: 2026-07-01 23:15 UTC ([`6620f3c`](https://gith
 ## Requirements
 
 - Home Assistant 2024.1 or newer (2026.x tested in CI)
-- [Ollama](https://ollama.com/) reachable **from the Home Assistant host** (not just from your laptop)
-- At least one instruct model pulled on that Ollama server (see [Choosing Ollama](#choosing-ollama-server--model))
+- [vLLM](https://docs.vllm.ai/) OpenAI-compatible server reachable **from the Home Assistant host** (e.g. your GX10)
+- At least one instruct model served by vLLM (see [Choosing vLLM](#choosing-vllm-server--model))
 
 ---
 
 ## End-user setup
 
-### 1. Install Ollama
+### 1. Install and run vLLM
 
-Install [Ollama](https://ollama.com/download) on a machine that Home Assistant can reach:
-
-- **Same machine as HA** — install Ollama on the HA host; use `http://127.0.0.1:11434`
-- **Another computer / NAS** — install Ollama there; use `http://<ip>:11434`
-- **HA in Docker, Ollama on host** — often `http://host.docker.internal:11434` (platform-dependent)
-- **HA OS / Supervised** — Ollama is not built-in; run it on another box or use an add-on/community guide for your platform
-
-Start the server (usually automatic after install):
+Run [vLLM](https://docs.vllm.ai/en/latest/getting_started/quickstart/) on a machine Home Assistant can reach (your GX10, a GPU server, etc.):
 
 ```bash
-ollama serve
+vllm serve Qwen/Qwen2.5-7B-Instruct --host 0.0.0.0 --port 8000
 ```
 
-Pull a recommended model:
-
-```bash
-ollama pull qwen2.5:7b-instruct
-```
+| Scenario | vLLM URL to use in HA |
+|----------|----------------------|
+| vLLM on same machine as HA | `http://127.0.0.1:8000` |
+| vLLM on LAN server (e.g. GX10) | `http://192.168.x.x:8000` |
+| HA Docker, vLLM on host | `http://host.docker.internal:8000` |
+| vLLM in Docker on same compose network | `http://<service-name>:8000` |
 
 Verify from the **same network as Home Assistant**:
 
 ```bash
-curl http://<ollama-host>:11434/api/tags
+curl http://<vllm-host>:8000/v1/models
 ```
 
 ### 2. Install the integration
@@ -83,8 +77,8 @@ Copy `custom_components/home_assistant_agent` into your Home Assistant `config/c
 
 1. Go to **Settings → Devices & Services → Add Integration**.
 2. Search for **Home Assistant Agent**.
-3. **Step 1 — Ollama URL:** enter the base URL reachable from HA (see table below).
-4. **Step 2 — Model & settings:** pick a model from the dropdown (loaded live from your Ollama server), set your mission statement, and adjust other options.
+3. **Step 1 — vLLM URL:** enter the base URL reachable from HA (and optional API key).
+4. **Step 2 — Model & settings:** pick a model from the dropdown (loaded live from vLLM), set your mission statement, and adjust other options.
 5. Finish the wizard.
 
 ### 4. Optional: voice and Assist
@@ -94,35 +88,28 @@ Copy `custom_components/home_assistant_agent` into your Home Assistant `config/c
 
 ---
 
-## Choosing Ollama server & model
+## Choosing vLLM server & model
 
 The config flow is a **two-step wizard**:
 
-1. **Ollama URL** — validated with a live connection test (`GET /api/tags`).
-2. **Model** — dropdown populated from models installed on that server (no manual typing required).
-
-| Scenario | Ollama URL to try |
-|----------|-------------------|
-| Ollama on same machine as HA | `http://127.0.0.1:11434` |
-| Ollama on LAN server | `http://192.168.x.x:11434` |
-| HA Docker, Ollama on host | `http://host.docker.internal:11434` |
-| Ollama in Docker on same compose network | `http://<service-name>:11434` |
+1. **vLLM URL** — validated with a live connection test (`GET /v1/models` or `/health`).
+2. **Model** — dropdown populated from models served by vLLM.
 
 **Recommended models** (good JSON plan output for the agent):
 
-| Model | Pull command | Notes |
-|-------|--------------|-------|
-| Qwen 2.5 7B Instruct | `ollama pull qwen2.5:7b-instruct` | Default; strong JSON reliability |
-| Llama 3.1 8B Instruct | `ollama pull llama3.1:8b-instruct` | Widely available |
-| Mistral 7B Instruct | `ollama pull mistral:7b-instruct` | Lighter footprint |
+| Model | Serve command | Notes |
+|-------|---------------|-------|
+| Qwen 2.5 7B Instruct | `vllm serve Qwen/Qwen2.5-7B-Instruct` | Default; strong JSON reliability |
+| Llama 3.1 8B Instruct | `vllm serve meta-llama/Llama-3.1-8B-Instruct` | Widely available |
+| Mistral 7B Instruct | `vllm serve mistralai/Mistral-7B-Instruct-v0.3` | Lighter footprint |
 
-The agent sends structured JSON plans to Ollama (`format: json`). Models without reliable JSON output may cause no-op cycles or parse failures.
+The agent requests JSON plans via OpenAI `response_format: json_object`. Models without reliable JSON output may cause no-op cycles or parse failures.
 
 **Troubleshooting**
 
-- `cannot_connect` — wrong URL, firewall, or Ollama not running on that host.
-- `no_models` — Ollama is up but empty; run `ollama pull <model>` on the Ollama machine.
-- `model_not_found` — model was removed from Ollama; re-open **Configure** and pick a current model.
+- `cannot_connect` — wrong URL, firewall, or vLLM not running on that host.
+- `no_models` — vLLM is up but returned no models; check `vllm serve` arguments.
+- `model_not_found` — model name in HA must match the `--served-model-name` / HuggingFace ID vLLM exposes.
 
 ---
 
@@ -130,8 +117,9 @@ The agent sends structured JSON plans to Ollama (`format: json`). Models without
 
 | Setting | Description |
 |---------|-------------|
-| Ollama URL | Base URL of Ollama **from HA's perspective** |
-| Model | Selected from live list on your Ollama server |
+| vLLM URL | Base URL of vLLM **from HA's perspective** (port 8000 default) |
+| vLLM API key | Optional bearer token if your server requires auth |
+| Model | Selected from live list on your vLLM server |
 | Mission statement | Free-text goals for autonomous behavior |
 | Poll interval | Seconds between background evaluations (default 600) |
 | Wyoming port | TCP port for embedded Wyoming handle service (default 10500) |
@@ -139,7 +127,8 @@ The agent sends structured JSON plans to Ollama (`format: json`). Models without
 | Assist satellite | Optional `assist_satellite.*` entity for voice announcements |
 | Entity include/exclude | Glob patterns to scope which entities the agent may act on |
 | Max actions per cycle | Safety cap per agent run (default 10) |
-| Temperature / context window | LLM inference parameters |
+| Temperature / max output tokens | LLM inference parameters (`max_tokens` in vLLM) |
+| vLLM request timeout | Max seconds to wait for a completion (default 600) |
 
 Update anytime via **Configure** on the integration card (options flow re-fetches models when the URL changes).
 
@@ -186,7 +175,7 @@ The integration runs entirely inside Home Assistant:
 
 - **StateCoordinator** — periodic snapshots and diffs
 - **AgentLoop** — orchestrates planning, execution, and verification
-- **OllamaClient** — direct `/api/chat` calls with JSON plan output
+- **VllmClient** — OpenAI-compatible `/v1/chat/completions` with JSON plan output
 - **MemoryStore** — persistent summarized history via `helpers.storage`
 - **WyomingServer** — embedded TCP handle service for voice
 - **AbstractConversationAgent** — Assist text conversations
@@ -242,7 +231,7 @@ Restart Home Assistant, then add the integration from the UI.
 GitHub Actions workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs:
 
 - **Unit tests** on every push and PR
-- **Integration tests** (Home Assistant + mock Ollama in Docker) on every push and PR
+- **Integration tests** (Home Assistant + mock vLLM in Docker) on every push and PR
 - **README CI status** auto-updated on `main` after successful runs
 
 ---

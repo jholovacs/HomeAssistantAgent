@@ -1,4 +1,4 @@
-"""Minimal Ollama API mock for integration tests."""
+"""Minimal vLLM OpenAI-compatible API mock for integration tests."""
 
 from __future__ import annotations
 
@@ -49,27 +49,43 @@ def _plan_for_messages(messages: list[dict]) -> dict:
     return EMPTY_PLAN
 
 
-async def handle_tags(_request: web.Request) -> web.Response:
-    return web.json_response({"models": [{"name": MODEL_NAME}]})
+async def handle_health(_request: web.Request) -> web.Response:
+    return web.Response(text="ok")
 
 
-async def handle_chat(request: web.Request) -> web.Response:
+async def handle_models(_request: web.Request) -> web.Response:
+    return web.json_response({"data": [{"id": MODEL_NAME}]})
+
+
+async def handle_chat_completions(request: web.Request) -> web.Response:
     body = await request.json()
     messages = body.get("messages", [])
     plan = _plan_for_messages(messages)
     content = json.dumps(plan)
-    return web.json_response({"message": {"role": "assistant", "content": content}})
+    return web.json_response(
+        {
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": content},
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 20},
+        }
+    )
 
 
 def create_app() -> web.Application:
     app = web.Application()
-    app.router.add_get("/api/tags", handle_tags)
-    app.router.add_post("/api/chat", handle_chat)
+    app.router.add_get("/health", handle_health)
+    app.router.add_get("/v1/models", handle_models)
+    app.router.add_post("/v1/chat/completions", handle_chat_completions)
     return app
 
 
 def main() -> None:
-    web.run_app(create_app(), host="0.0.0.0", port=11434)
+    web.run_app(create_app(), host="0.0.0.0", port=8000)
 
 
 if __name__ == "__main__":

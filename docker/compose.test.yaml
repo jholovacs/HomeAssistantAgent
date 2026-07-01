@@ -2,13 +2,13 @@
 # Run: docker compose -f docker/compose.test.yaml up --build -d
 
 services:
-  ollama-mock:
+  vllm-mock:
     build:
-      context: ./ollama-mock
+      context: ./vllm-mock
     ports:
-      - "11434:11434"
+      - "8000:8000"
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:11434/api/tags')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -17,7 +17,7 @@ services:
   homeassistant:
     image: ghcr.io/home-assistant/home-assistant:stable
     depends_on:
-      ollama-mock:
+      vllm-mock:
         condition: service_healthy
     ports:
       - "8123:8123"

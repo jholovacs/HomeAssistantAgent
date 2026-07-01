@@ -36,8 +36,8 @@ trap cleanup EXIT
 
 export RUN_INTEGRATION=1
 export HA_URL="${HA_URL:-http://127.0.0.1:8123}"
-export OLLAMA_MOCK_URL="${OLLAMA_MOCK_URL:-http://127.0.0.1:11434}"
-export HA_OLLAMA_URL="${HA_OLLAMA_URL:-http://ollama-mock:11434}"
+export VLLM_MOCK_URL="${VLLM_MOCK_URL:-http://127.0.0.1:8000}"
+export HA_VLLM_URL="${HA_VLLM_URL:-http://vllm-mock:8000}"
 
 echo "Running integration tests..."
 python -m pytest tests/integration -v --timeout=300 "$@"
