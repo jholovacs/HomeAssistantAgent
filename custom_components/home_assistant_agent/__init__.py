@@ -16,7 +16,15 @@ from .agent.executor import Executor
 from .agent.loop import AgentLoop
 from .agent.planner import Planner
 from .agent.verifier import Verifier
-from .const import CONF_MISSION_STATEMENT, CONF_OLLAMA_KEEP_ALIVE, CONF_RESUME_ON_STARTUP, CONF_WYOMING_PORT, DOMAIN
+from .const import (
+    CONF_MISSION_STATEMENT,
+    CONF_OLLAMA_KEEP_ALIVE,
+    CONF_OLLAMA_REQUEST_TIMEOUT,
+    CONF_RESUME_ON_STARTUP,
+    CONF_WYOMING_PORT,
+    DOMAIN,
+)
+from .llm.errors import OllamaRequestError
 from .coordinator import StateCoordinator
 from .llm.ollama import OllamaClient
 from .memory.checkpoint import CheckpointStore
@@ -52,6 +60,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         temperature=config.get("temperature", 0.3),
         num_ctx=config.get("num_ctx", 8192),
         keep_alive=config.get(CONF_OLLAMA_KEEP_ALIVE, "30m"),
+        request_timeout=config.get(CONF_OLLAMA_REQUEST_TIMEOUT, 600),
         session=async_get_clientsession(hass),
     )
 
@@ -123,6 +132,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def _safe_background_run(agent_loop: AgentLoop) -> None:
     try:
         await agent_loop.run_background()
+    except OllamaRequestError as err:
+        _LOGGER.warning("Background agent run skipped: %s", err)
     except Exception as err:
         _LOGGER.exception("Background agent run failed: %s", err)
 

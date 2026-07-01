@@ -9,6 +9,7 @@ from typing import Any
 import aiohttp
 
 from .base import LLMClient
+from .errors import OllamaRequestError, OllamaTimeoutError
 from .prompt_log import log_llm_request, log_llm_response
 
 _LOGGER = logging.getLogger(__name__)
@@ -25,6 +26,7 @@ class OllamaClient(LLMClient):
         temperature: float = 0.3,
         num_ctx: int = 8192,
         keep_alive: str | int = "30m",
+        request_timeout: int = 600,
         session: aiohttp.ClientSession | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
@@ -32,6 +34,7 @@ class OllamaClient(LLMClient):
         self._temperature = temperature
         self._num_ctx = num_ctx
         self._keep_alive = keep_alive
+        self._request_timeout = request_timeout
         self._session = session
         self._owns_session = session is None
 
@@ -45,6 +48,14 @@ class OllamaClient(LLMClient):
         if self._owns_session and self._session is not None:
             await self._session.close()
             self._session = None
+
+    def _chat_timeout(self) -> aiohttp.ClientTimeout:
+        return aiohttp.ClientTimeout(
+            total=self._request_timeout,
+            connect=min(30, self._request_timeout),
+            sock_connect=min(30, self._request_timeout),
+            sock_read=self._request_timeout,
+        )
 
     async def health_check(self) -> bool:
         """Return True if Ollama is reachable."""
@@ -98,13 +109,34 @@ class OllamaClient(LLMClient):
         )
 
         session = await self._get_session()
-        async with session.post(
-            f"{self._base_url}/api/chat",
-            json=payload,
-            timeout=aiohttp.ClientTimeout(total=120),
-        ) as resp:
-            resp.raise_for_status()
-            data = await resp.json()
+        try:
+            async with session.post(
+                f"{self._base_url}/api/chat",
+                json=payload,
+                timeout=self._chat_timeout(),
+            ) as resp:
+                resp.raise_for_status()
+                data = await resp.json()
+        except TimeoutError as err:
+            _LOGGER.warning(
+                "Ollama chat timed out after %ss (model=%s, url=%s). "
+                "Increase 'Ollama request timeout' in integration settings, "
+                "use a smaller model, or reduce context size.",
+                self._request_timeout,
+                self._model,
+                self._base_url,
+            )
+            raise OllamaTimeoutError(
+                f"Ollama chat timed out after {self._request_timeout}s"
+            ) from err
+        except aiohttp.ClientError as err:
+            _LOGGER.warning(
+                "Ollama chat request failed (model=%s, url=%s): %s",
+                self._model,
+                self._base_url,
+                err,
+            )
+            raise OllamaRequestError(str(err)) from err
 
         message = data.get("message", {})
         content = message.get("content", "")
