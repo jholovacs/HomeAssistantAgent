@@ -16,7 +16,7 @@ from home_assistant_agent.llm.ollama import OllamaClient
 @pytest.fixture
 def planner():
     llm = OllamaClient("http://localhost:11434", "test")
-    return Planner(llm)
+    return Planner(llm, {})
 
 
 def test_parse_valid_plan(planner):
@@ -48,6 +48,37 @@ def test_parse_blocks_disallowed_service(planner):
         {
             "reasoning": "Restart",
             "steps": [{"service": "homeassistant.restart", "target": {}, "data": {}}],
+            "notify_user": False,
+            "response_text": "",
+            "summary_for_memory": "",
+        }
+    )
+    plan = planner._parse_plan(content)
+    assert plan.steps == []
+
+
+def test_parse_allows_extra_domains_in_admin_mode():
+    llm = OllamaClient("http://localhost:11434", "test")
+    admin_planner = Planner(llm, {"admin_mode": True})
+    content = json.dumps(
+        {
+            "reasoning": "Open garage",
+            "steps": [{"service": "cover.open_cover", "target": {"entity_id": "cover.garage"}, "data": {}}],
+            "notify_user": False,
+            "response_text": "",
+            "summary_for_memory": "",
+        }
+    )
+    plan = admin_planner._parse_plan(content)
+    assert len(plan.steps) == 1
+    assert plan.steps[0].service == "cover.open_cover"
+
+
+def test_parse_blocks_non_allowlisted_domain_without_admin_mode(planner):
+    content = json.dumps(
+        {
+            "reasoning": "Reload config",
+            "steps": [{"service": "reload.reload", "target": {}, "data": {}}],
             "notify_user": False,
             "response_text": "",
             "summary_for_memory": "",

@@ -23,3 +23,15 @@ def test_blocked_invalid_service():
 
 def test_allowed_scene_service():
     assert is_allowed_service("scene.turn_on")
+
+
+def test_admin_mode_allows_any_domain_except_blocked():
+    assert is_allowed_service("number.set_value", admin_mode=True)
+    assert is_allowed_service("todo.add_item", admin_mode=True)
+    assert not is_allowed_service("homeassistant.restart", admin_mode=True)
+    assert not is_allowed_service("hassio.host_shutdown", admin_mode=True)
+
+
+def test_non_allowlisted_domain_blocked_without_admin_mode():
+    assert not is_allowed_service("number.set_value")
+    assert not is_allowed_service("todo.add_item")

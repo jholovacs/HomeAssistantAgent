@@ -1,23 +1,11 @@
 """Tests for entity filtering."""
 
-import fnmatch
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "custom_components"))
 
-
-def entity_allowed(
-    entity_id: str,
-    includes: list[str],
-    excludes: list[str],
-) -> bool:
-    """Mirror coordinator entity filter logic."""
-    if excludes and any(fnmatch.fnmatch(entity_id, pat) for pat in excludes):
-        return False
-    if includes:
-        return any(fnmatch.fnmatch(entity_id, pat) for pat in includes)
-    return True
+from home_assistant_agent.coordinator import entity_allowed
 
 
 def test_entity_allowed_with_include():
@@ -32,3 +20,13 @@ def test_entity_allowed_with_exclude():
 
 def test_entity_allowed_no_filters():
     assert entity_allowed("sensor.temperature", [], [])
+
+
+def test_admin_mode_bypasses_include_filter():
+    assert entity_allowed("switch.kitchen", ["light.*"], [], admin_mode=True)
+    assert entity_allowed("todo.shopping", ["light.*"], [], admin_mode=True)
+
+
+def test_admin_mode_still_respects_exclude():
+    assert not entity_allowed("light.kitchen", ["light.*"], ["light.*"], admin_mode=True)
+    assert entity_allowed("switch.kitchen", ["light.*"], ["light.*"], admin_mode=True)

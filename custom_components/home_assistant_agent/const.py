@@ -11,6 +11,8 @@ CONF_NOTIFY_SERVICES = "notify_services"
 CONF_ASSIST_SATELLITE = "assist_satellite"
 CONF_ENTITY_INCLUDE = "entity_include"
 CONF_ENTITY_EXCLUDE = "entity_exclude"
+CONF_ADMIN_MODE = "admin_mode"
+CONF_RESUME_ON_STARTUP = "resume_on_startup"
 CONF_MAX_ACTIONS = "max_actions_per_cycle"
 CONF_TEMPERATURE = "temperature"
 CONF_NUM_CTX = "num_ctx"
@@ -22,6 +24,8 @@ DEFAULT_WYOMING_PORT = 10500
 DEFAULT_MAX_ACTIONS = 10
 DEFAULT_TEMPERATURE = 0.3
 DEFAULT_NUM_CTX = 8192
+DEFAULT_ADMIN_MODE = False
+DEFAULT_RESUME_ON_STARTUP = True
 DEFAULT_MISSION_STATEMENT = (
     "Maintain a comfortable, safe, and energy-efficient home. "
     "Take proactive action when something is clearly wrong or wasteful. "
@@ -33,6 +37,13 @@ VERIFY_DELAY_SECONDS = 2
 MEMORY_MAX_ENTRIES = 50
 STORAGE_VERSION = 1
 STORAGE_KEY = f"{DOMAIN}_memory"
+CHECKPOINT_STORAGE_VERSION = 1
+CHECKPOINT_STORAGE_KEY = f"{DOMAIN}_checkpoint"
+
+EVENT_RESUME = f"{DOMAIN}_resume"
+EVENT_CHECKPOINT_SAVED = f"{DOMAIN}_checkpoint_saved"
+
+SERVICE_RESUME = "resume"
 
 BLOCKED_DOMAINS = frozenset({"homeassistant", "hassio", "supervisor", "auth"})
 

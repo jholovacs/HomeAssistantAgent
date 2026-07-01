@@ -16,13 +16,15 @@ from .agent.executor import Executor
 from .agent.loop import AgentLoop
 from .agent.planner import Planner
 from .agent.verifier import Verifier
-from .const import CONF_MISSION_STATEMENT, CONF_WYOMING_PORT, DOMAIN
+from .const import CONF_MISSION_STATEMENT, CONF_RESUME_ON_STARTUP, CONF_WYOMING_PORT, DOMAIN
 from .conversation import async_setup_conversation, async_unload_conversation
 from .coordinator import StateCoordinator
 from .llm.ollama import OllamaClient
+from .memory.checkpoint import CheckpointStore
 from .memory.store import MemoryStore
 from .memory.summarizer import MemorySummarizer
 from .notify import Notifier
+from .services import async_register_startup_resume, async_setup_services, async_unload_services
 from .wyoming_server import WyomingServer
 
 _LOGGER = logging.getLogger(__name__)
@@ -57,11 +59,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await memory.async_load()
     memory.set_mission_statement(config.get(CONF_MISSION_STATEMENT, ""))
 
+    checkpoint = CheckpointStore(hass, entry.entry_id)
+    await checkpoint.async_load()
+
     coordinator = StateCoordinator(hass, config)
     await coordinator.async_config_entry_first_refresh()
 
-    planner = Planner(llm)
-    executor = Executor(hass)
+    planner = Planner(llm, config)
+    executor = Executor(hass, config)
     verifier = Verifier(hass)
     summarizer = MemorySummarizer(llm)
     notifier = Notifier(hass, config)
@@ -76,6 +81,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         memory,
         summarizer,
         notifier,
+        checkpoint,
     )
 
     wyoming = WyomingServer(
@@ -85,6 +91,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await wyoming.start()
 
     await async_setup_conversation(hass, entry, agent_loop)
+    await async_setup_services(hass, entry.entry_id, agent_loop)
+    async_register_startup_resume(
+        hass,
+        entry,
+        agent_loop,
+        resume_on_startup=config.get(CONF_RESUME_ON_STARTUP, True),
+    )
 
     @callback
     def _on_coordinator_update() -> None:
@@ -99,6 +112,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "wyoming": wyoming,
         "llm": llm,
         "memory": memory,
+        "checkpoint": checkpoint,
     }
 
     _LOGGER.info("Home Assistant Agent initialized (Wyoming: %s)", wyoming.uri)
@@ -117,6 +131,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     data = hass.data.get(DOMAIN, {}).pop(entry.entry_id, {})
 
     await async_unload_conversation(hass, entry)
+    async_unload_services(hass)
 
     wyoming: WyomingServer | None = data.get("wyoming")
     if wyoming:

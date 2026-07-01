@@ -7,6 +7,7 @@ from typing import Any
 
 from homeassistant.core import HomeAssistant
 
+from ..const import CONF_ADMIN_MODE
 from .planner import PlanStep
 from .tools import is_allowed_service
 
@@ -16,12 +17,14 @@ _LOGGER = logging.getLogger(__name__)
 class Executor:
     """Maps plan steps to hass.services.async_call."""
 
-    def __init__(self, hass: HomeAssistant) -> None:
+    def __init__(self, hass: HomeAssistant, config: dict[str, Any]) -> None:
         self._hass = hass
+        self._config = config
 
     async def execute_step(self, step: PlanStep) -> dict[str, Any]:
         """Execute a single plan step. Returns result metadata."""
-        if not is_allowed_service(step.service):
+        admin_mode = bool(self._config.get(CONF_ADMIN_MODE, False))
+        if not is_allowed_service(step.service, admin_mode=admin_mode):
             raise ValueError(f"Service not allowed: {step.service}")
 
         domain, service = step.service.split(".", 1)

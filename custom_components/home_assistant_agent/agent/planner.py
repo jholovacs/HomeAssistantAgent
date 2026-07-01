@@ -7,13 +7,14 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
+from ..const import CONF_ADMIN_MODE
 from ..llm.base import LLMClient
 from .prompts import (
     BACKGROUND_USER_PROMPT,
     CONVERSATION_USER_PROMPT,
-    PLAN_JSON_SCHEMA,
+    RESUME_USER_PROMPT,
     RETRY_USER_PROMPT,
-    SYSTEM_PROMPT,
+    build_system_prompt,
 )
 from .tools import is_allowed_service
 
@@ -41,11 +42,47 @@ class AgentPlan:
     summary_for_memory: str
 
 
+def step_to_dict(step: PlanStep) -> dict[str, Any]:
+    """Serialize a plan step for checkpoint storage."""
+    return {
+        "service": step.service,
+        "target": step.target,
+        "data": step.data,
+        "expected": step.expected,
+    }
+
+
+def step_from_dict(data: dict[str, Any]) -> PlanStep:
+    """Deserialize a plan step from checkpoint storage."""
+    return PlanStep(
+        service=data.get("service", ""),
+        target=data.get("target") or {},
+        data=data.get("data") or {},
+        expected=data.get("expected") or {},
+    )
+
+
+def plan_from_checkpoint(data: dict[str, Any]) -> AgentPlan:
+    """Rebuild an agent plan from checkpoint data."""
+    pending = [step_from_dict(item) for item in data.get("pending_steps", [])]
+    return AgentPlan(
+        reasoning=data.get("reasoning", ""),
+        steps=pending,
+        notify_user=bool(data.get("notify_user", False)),
+        response_text=data.get("response_text", ""),
+        summary_for_memory=data.get("summary_for_memory", ""),
+    )
+
+
 class Planner:
     """Assembles prompts and parses LLM plans."""
 
-    def __init__(self, llm: LLMClient) -> None:
+    def __init__(self, llm: LLMClient, config: dict[str, Any]) -> None:
         self._llm = llm
+        self._config = config
+
+    def _admin_mode(self) -> bool:
+        return bool(self._config.get(CONF_ADMIN_MODE, False))
 
     async def plan_background(
         self,
@@ -60,7 +97,7 @@ class Planner:
         scripts: str,
     ) -> AgentPlan:
         """Generate a plan from periodic background evaluation."""
-        system = SYSTEM_PROMPT.format(schema=PLAN_JSON_SCHEMA)
+        system = build_system_prompt(admin_mode=self._admin_mode())
         user = BACKGROUND_USER_PROMPT.format(
             mission=mission,
             preferences=preferences or "None recorded.",
@@ -83,7 +120,7 @@ class Planner:
         snapshot: str,
     ) -> AgentPlan:
         """Generate a plan from a user conversation."""
-        system = SYSTEM_PROMPT.format(schema=PLAN_JSON_SCHEMA)
+        system = build_system_prompt(admin_mode=self._admin_mode())
         user = CONVERSATION_USER_PROMPT.format(
             mission=mission,
             preferences=preferences or "None recorded.",
@@ -102,13 +139,37 @@ class Planner:
         current_state: str,
     ) -> AgentPlan:
         """Generate a revised plan after verification failure."""
-        system = SYSTEM_PROMPT.format(schema=PLAN_JSON_SCHEMA)
+        system = build_system_prompt(admin_mode=self._admin_mode())
         user = RETRY_USER_PROMPT.format(
             failed_step=json.dumps(failed_step),
             error=error,
             current_state=current_state,
         )
         user = f"Mission: {mission}\n\n{user}"
+        return await self._request_plan(system, user)
+
+    async def plan_resume(
+        self,
+        *,
+        mission: str,
+        memory: str,
+        snapshot: str,
+        completed_steps: list[str],
+        pending_steps: list[PlanStep],
+    ) -> AgentPlan:
+        """Generate a plan to resume work after an interruption."""
+        import json as json_module
+
+        system = build_system_prompt(admin_mode=self._admin_mode())
+        pending_text = json_module.dumps([step_to_dict(step) for step in pending_steps], indent=2)
+        completed_text = "\n".join(f"- {step}" for step in completed_steps) or "None"
+        user = RESUME_USER_PROMPT.format(
+            mission=mission,
+            completed_steps=completed_text,
+            pending_steps=pending_text,
+            memory=memory,
+            snapshot=snapshot,
+        )
         return await self._request_plan(system, user)
 
     async def _request_plan(self, system: str, user: str) -> AgentPlan:
@@ -139,7 +200,7 @@ class Planner:
         steps: list[PlanStep] = []
         for raw_step in data.get("steps", []):
             service = raw_step.get("service", "")
-            if not is_allowed_service(service):
+            if not is_allowed_service(service, admin_mode=self._admin_mode()):
                 _LOGGER.warning("Blocked disallowed service: %s", service)
                 continue
             steps.append(

@@ -1,0 +1,3 @@
+resume:
+  name: Resume agent
+  description: Resume an interrupted agent run from the last saved checkpoint.

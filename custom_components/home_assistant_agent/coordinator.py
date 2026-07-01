@@ -10,9 +10,26 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .const import CONF_ENTITY_EXCLUDE, CONF_ENTITY_INCLUDE, DOMAIN, KEY_ATTRIBUTES
+from .const import CONF_ADMIN_MODE, CONF_ENTITY_EXCLUDE, CONF_ENTITY_INCLUDE, DOMAIN, KEY_ATTRIBUTES
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def entity_allowed(
+    entity_id: str,
+    includes: list[str],
+    excludes: list[str],
+    *,
+    admin_mode: bool = False,
+) -> bool:
+    """Return True if an entity is visible to the agent."""
+    if excludes and any(fnmatch.fnmatch(entity_id, pat) for pat in excludes):
+        return False
+    if admin_mode:
+        return True
+    if includes:
+        return any(fnmatch.fnmatch(entity_id, pat) for pat in includes)
+    return True
 
 
 def _compact_entity(state) -> dict[str, Any]:
@@ -49,14 +66,12 @@ class StateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._previous_snapshot: dict[str, Any] | None = None
 
     def _entity_allowed(self, entity_id: str) -> bool:
-        includes = self._config.get(CONF_ENTITY_INCLUDE, [])
-        excludes = self._config.get(CONF_ENTITY_EXCLUDE, [])
-
-        if excludes and any(fnmatch.fnmatch(entity_id, pat) for pat in excludes):
-            return False
-        if includes:
-            return any(fnmatch.fnmatch(entity_id, pat) for pat in includes)
-        return True
+        return entity_allowed(
+            entity_id,
+            self._config.get(CONF_ENTITY_INCLUDE, []),
+            self._config.get(CONF_ENTITY_EXCLUDE, []),
+            admin_mode=bool(self._config.get(CONF_ADMIN_MODE, False)),
+        )
 
     async def _async_update_data(self) -> dict[str, Any]:
         try:

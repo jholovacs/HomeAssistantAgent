@@ -9,7 +9,8 @@ from typing import Any
 
 from homeassistant.core import HomeAssistant
 
-from ..const import CONF_MAX_ACTIONS, CONF_MISSION_STATEMENT, MAX_RETRIES
+from ..const import CONF_MAX_ACTIONS, CONF_MISSION_STATEMENT, EVENT_CHECKPOINT_SAVED, EVENT_RESUME, MAX_RETRIES
+from ..memory.checkpoint import CheckpointStore
 from ..memory.summarizer import MemorySummarizer
 from ..memory.store import MemoryStore
 from ..notify import Notifier
@@ -45,6 +46,7 @@ class AgentLoop:
         memory: MemoryStore,
         summarizer: MemorySummarizer,
         notifier: Notifier,
+        checkpoint: CheckpointStore,
     ) -> None:
         self._hass = hass
         self._config = config
@@ -55,6 +57,7 @@ class AgentLoop:
         self._memory = memory
         self._summarizer = summarizer
         self._notifier = notifier
+        self._checkpoint = checkpoint
         self._lock = asyncio.Lock()
         self._running = False
 
@@ -67,6 +70,10 @@ class AgentLoop:
         if self._lock.locked():
             _LOGGER.debug("Agent already running, skipping background cycle")
             return None
+
+        if self._checkpoint.has_pending():
+            _LOGGER.info("Pending checkpoint found; resuming instead of new background run")
+            return await self.run_resume(reason="checkpoint")
 
         async with self._lock:
             self._running = True
@@ -82,9 +89,71 @@ class AgentLoop:
                     scenes=self._coordinator.format_list_for_prompt("scenes"),
                     scripts=self._coordinator.format_list_for_prompt("scripts"),
                 )
-                return await self._execute_plan(plan, user_request=None)
+                return await self._execute_plan(
+                    plan,
+                    user_request=None,
+                    run_type="background",
+                )
             finally:
                 self._running = False
+
+    async def run_resume(self, *, reason: str = "startup") -> RunResult | None:
+        """Resume an interrupted run from the persisted checkpoint."""
+        if self._lock.locked():
+            _LOGGER.debug("Agent already running, skipping resume")
+            return None
+
+        if not self._checkpoint.has_pending():
+            _LOGGER.debug("No checkpoint to resume")
+            return None
+
+        snapshot = self._checkpoint.get_snapshot() or {}
+        pending_count = len(snapshot.get("pending_steps", []))
+        completed_count = len(snapshot.get("completed_steps", []))
+
+        async with self._lock:
+            self._running = True
+            try:
+                self._fire_resume_event(
+                    reason=reason,
+                    pending_steps=pending_count,
+                    completed_steps=completed_count,
+                )
+                plan = self._checkpoint.to_plan()
+                if not plan or not plan.steps:
+                    _LOGGER.warning("Checkpoint had no executable steps; clearing")
+                    await self._checkpoint.clear()
+                    return None
+
+                _LOGGER.info(
+                    "Resuming interrupted run (%d steps remaining, reason=%s)",
+                    len(plan.steps),
+                    reason,
+                )
+                return await self._execute_plan(
+                    plan,
+                    user_request=snapshot.get("user_request"),
+                    run_type=snapshot.get("run_type", "background"),
+                    resuming=True,
+                )
+            finally:
+                self._running = False
+
+    def _fire_resume_event(
+        self,
+        *,
+        reason: str,
+        pending_steps: int,
+        completed_steps: int,
+    ) -> None:
+        self._hass.bus.async_fire(
+            EVENT_RESUME,
+            {
+                "reason": reason,
+                "pending_steps": pending_steps,
+                "completed_steps": completed_steps,
+            },
+        )
 
     async def run_conversation(self, user_message: str) -> RunResult:
         """Run agent cycle from user input."""
@@ -99,7 +168,11 @@ class AgentLoop:
                     user_message=user_message,
                     snapshot=self._coordinator.format_snapshot_for_prompt(),
                 )
-                return await self._execute_plan(plan, user_request=user_message)
+                return await self._execute_plan(
+                    plan,
+                    user_request=user_message,
+                    run_type="conversation",
+                )
             finally:
                 self._running = False
 
@@ -108,13 +181,18 @@ class AgentLoop:
         plan: AgentPlan,
         *,
         user_request: str | None,
+        run_type: str = "background",
+        resuming: bool = False,
     ) -> RunResult:
         max_actions = self._config.get(CONF_MAX_ACTIONS, 10)
         steps_executed: list[str] = []
         overall_success = True
+        last_error = ""
 
         if not plan.steps:
             _LOGGER.debug("No action steps in plan: %s", plan.reasoning)
+            if resuming:
+                await self._checkpoint.clear()
             if plan.summary_for_memory:
                 await self._memory.add_entry(plan.summary_for_memory)
             return RunResult(
@@ -132,7 +210,22 @@ class AgentLoop:
                 max_actions,
             )
 
-        for step in steps_to_run:
+        if not resuming:
+            await self._checkpoint.begin_run(
+                plan,
+                run_type=run_type,
+                user_request=user_request,
+            )
+            self._hass.bus.async_fire(
+                EVENT_CHECKPOINT_SAVED,
+                {
+                    "run_type": run_type,
+                    "pending_steps": len(steps_to_run),
+                    "completed_steps": 0,
+                },
+            )
+
+        for idx, step in enumerate(steps_to_run):
             step_success = False
             last_error = ""
             current_states: dict[str, str] = {}
@@ -143,7 +236,10 @@ class AgentLoop:
                     result = await self._verifier.verify_step(step)
                     if result.success:
                         step_success = True
-                        steps_executed.append(self._executor.describe_step(step))
+                        description = self._executor.describe_step(step)
+                        steps_executed.append(description)
+                        remaining = steps_to_run[idx + 1 :]
+                        await self._checkpoint.record_step_done(description, remaining)
                         break
                     last_error = result.message
                     current_states = result.current_states
@@ -183,7 +279,10 @@ class AgentLoop:
                     )
                 break
 
-        outcome = "success" if overall_success else f"partial/failed: {last_error if not overall_success else 'ok'}"
+        if overall_success:
+            await self._checkpoint.clear()
+
+        outcome = "success" if overall_success else f"partial/failed: {last_error or 'ok'}"
         summary = plan.summary_for_memory
         if not summary:
             summary = await self._summarizer.summarize_run(

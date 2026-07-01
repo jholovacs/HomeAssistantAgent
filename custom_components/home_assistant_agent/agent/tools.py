@@ -31,7 +31,7 @@ Common services:
 """
 
 
-def is_allowed_service(service: str) -> bool:
+def is_allowed_service(service: str, *, admin_mode: bool = False) -> bool:
     """Return True if the service is permitted."""
     if not service or "." not in service:
         return False
@@ -40,4 +40,6 @@ def is_allowed_service(service: str) -> bool:
 
     if domain in BLOCKED_DOMAINS:
         return False
+    if admin_mode:
+        return True
     return any(service.startswith(prefix) for prefix in ALLOWED_SERVICE_PREFIXES)

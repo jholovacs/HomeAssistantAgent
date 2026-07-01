@@ -25,14 +25,48 @@
           "entity_exclude": "Entity exclude patterns (comma-separated globs)",
           "max_actions_per_cycle": "Max actions per cycle",
           "temperature": "LLM temperature",
-          "num_ctx": "LLM context window"
+          "num_ctx": "LLM context window",
+          "admin_mode": "Admin mode",
+          "resume_on_startup": "Resume on startup"
         },
         "data_description": {
           "model": "Models are loaded from your Ollama server. Use an instruct model with reliable JSON output (e.g. qwen2.5:7b-instruct). Run `ollama pull <model>` first if a model is missing.",
           "mission_statement": "Describe how you want your home to behave. The agent uses this as its primary goal when acting autonomously.",
           "poll_interval": "How often the agent evaluates your home in the background.",
-          "entity_include": "Optional glob patterns limiting which entities the agent may act on (e.g. light.*, climate.*).",
-          "entity_exclude": "Optional glob patterns for entities the agent must never change."
+          "entity_include": "Optional glob patterns limiting which entities the agent may act on (e.g. light.*, climate.*). Ignored when admin mode is enabled.",
+          "entity_exclude": "Optional glob patterns for entities the agent must never change.",
+          "admin_mode": "When enabled, the agent can call any Home Assistant service and see all entities (except excludes). homeassistant.*, hassio.*, supervisor.*, and auth.* remain blocked.",
+          "resume_on_startup": "When enabled, the agent resumes interrupted runs after Home Assistant restarts or power loss."
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure Home Assistant Agent",
+        "description": "Update Ollama connection, model, and agent behavior.",
+        "data": {
+          "ollama_url": "Ollama URL",
+          "model": "Model",
+          "mission_statement": "Mission statement",
+          "poll_interval": "Poll interval (seconds)",
+          "wyoming_port": "Wyoming server port",
+          "notify_services": "Notify services (comma-separated)",
+          "assist_satellite": "Assist satellite entity (optional)",
+          "entity_include": "Entity include patterns (comma-separated globs)",
+          "entity_exclude": "Entity exclude patterns (comma-separated globs)",
+          "max_actions_per_cycle": "Max actions per cycle",
+          "temperature": "LLM temperature",
+          "num_ctx": "LLM context window",
+          "admin_mode": "Admin mode",
+          "resume_on_startup": "Resume on startup"
+        },
+        "data_description": {
+          "ollama_url": "Must be reachable from the Home Assistant host.",
+          "model": "Models are loaded live from your Ollama server.",
+          "mission_statement": "Describe how you want your home to behave.",
+          "poll_interval": "How often the agent evaluates your home in the background.",
+          "entity_include": "Optional glob patterns limiting which entities the agent may act on. Ignored when admin mode is enabled.",
+          "entity_exclude": "Optional glob patterns for entities the agent must never change.",
+          "admin_mode": "Allow any Home Assistant service except homeassistant.*, hassio.*, supervisor.*, and auth.*.",
+          "resume_on_startup": "Resume interrupted runs after Home Assistant restarts or power loss."
         }
       }
     },
@@ -48,19 +82,10 @@
   "options": {
     "step": {
       "init": {
-        "title": "Ollama connection",
-        "description": "Update the Ollama server URL. The integration will reload available models.",
+        "title": "Home Assistant Agent settings",
+        "description": "Update Ollama connection, model, and agent behavior.",
         "data": {
-          "ollama_url": "Ollama URL"
-        },
-        "data_description": {
-          "ollama_url": "Must be reachable from the Home Assistant host (not from your browser unless they are the same machine)."
-        }
-      },
-      "agent": {
-        "title": "Home Assistant Agent options",
-        "description": "Update the model and agent behavior.",
-        "data": {
+          "ollama_url": "Ollama URL",
           "model": "Model",
           "mission_statement": "Mission statement",
           "poll_interval": "Poll interval (seconds)",
@@ -71,16 +96,26 @@
           "entity_exclude": "Entity exclude patterns (comma-separated globs)",
           "max_actions_per_cycle": "Max actions per cycle",
           "temperature": "LLM temperature",
-          "num_ctx": "LLM context window"
+          "num_ctx": "LLM context window",
+          "admin_mode": "Admin mode",
+          "resume_on_startup": "Resume on startup"
         },
         "data_description": {
-          "model": "Pick from models currently installed on your Ollama server."
+          "ollama_url": "Must be reachable from the Home Assistant host.",
+          "model": "Pick from models currently installed on your Ollama server.",
+          "mission_statement": "Describe how you want your home to behave.",
+          "poll_interval": "How often the agent evaluates your home in the background.",
+          "entity_include": "Optional glob patterns limiting which entities the agent may act on. Ignored when admin mode is enabled.",
+          "entity_exclude": "Optional glob patterns for entities the agent must never change.",
+          "admin_mode": "When enabled, the agent can call any Home Assistant service and see all entities (except excludes).",
+          "resume_on_startup": "Resume interrupted agent runs after Home Assistant restarts."
         }
       }
     },
     "error": {
       "cannot_connect": "Failed to connect to Ollama. Check the URL, firewall, and that Ollama is running.",
-      "no_models": "No models found on the Ollama server. Pull a model with `ollama pull` and try again."
+      "no_models": "No models found on the Ollama server. Pull a model with `ollama pull` and try again.",
+      "model_not_found": "The selected model is no longer available on the Ollama server."
     }
   }
 }
