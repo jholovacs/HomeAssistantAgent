@@ -152,9 +152,20 @@ Update anytime via **Configure** on the integration card (options flow re-fetche
 
 ## Assist Text Setup
 
-1. Go to **Settings → Voice Assistants**.
+1. Go to **Settings → Voice assistants**.
 2. Create or edit an assistant.
-3. Set **Conversation agent** to **Home Assistant Agent** (use the config entry ID if prompted).
+3. Set **Conversation agent** to **Home Assistant Agent**.
+
+After setup you should also see a `conversation.*` entity under the integration device. If the agent does not appear in the dropdown, reload the integration or update to the latest version (conversation platform registration is required for Assist).
+
+You can also send text directly via the API using the config entry ID as `agent_id`:
+
+```bash
+curl -X POST -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"text":"Turn on the kitchen light","agent_id":"<config_entry_id>"}' \
+  http://homeassistant.local:8123/api/conversation/process
+```
 
 ## Example Mission Statements
 

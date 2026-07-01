@@ -1,4 +1,4 @@
-"""Home Assistant conversation agent."""
+"""Conversation platform for Home Assistant Agent."""
 
 from __future__ import annotations
 
@@ -9,29 +9,68 @@ from homeassistant.components import conversation
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import MATCH_ALL
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import intent
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers.intent import IntentResponse
 
 from .agent.loop import AgentLoop
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class HomeAssistantAgentConversation(conversation.AbstractConversationAgent):
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
+) -> None:
+    """Set up the conversation entity."""
+    data = hass.data[DOMAIN][entry.entry_id]
+    async_add_entities([HomeAssistantAgentConversationEntity(entry, data["agent_loop"])])
+
+
+class HomeAssistantAgentConversationEntity(
+    conversation.ConversationEntity,
+    conversation.AbstractConversationAgent,
+):
     """Conversation agent powered by the autonomous agent loop."""
+
+    _attr_has_entity_name = True
+    _attr_name = None
 
     def __init__(self, entry: ConfigEntry, agent_loop: AgentLoop) -> None:
         self._entry = entry
         self._agent_loop = agent_loop
+        self._attr_unique_id = entry.entry_id
+        self._attr_device_info = {
+            "identifiers": {(DOMAIN, entry.entry_id)},
+            "name": entry.title or "Home Assistant Agent",
+            "manufacturer": "Home Assistant Agent",
+        }
 
     @property
     def supported_languages(self) -> list[str] | Literal["*"]:
         return MATCH_ALL
 
+    async def async_added_to_hass(self) -> None:
+        """Register as a conversation agent when the entity is added."""
+        await super().async_added_to_hass()
+        conversation.async_set_agent(self.hass, self._entry, self)
+        _LOGGER.info(
+            "Registered conversation agent (entity: %s, agent_id: %s)",
+            self.entity_id,
+            self._entry.entry_id,
+        )
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Unregister the conversation agent."""
+        conversation.async_unset_agent(self.hass, self._entry)
+        await super().async_will_remove_from_hass()
+
     async def async_process(
         self, user_input: conversation.ConversationInput
     ) -> conversation.ConversationResult:
         """Process user input through the agent loop."""
-        intent_response = intent.IntentResponse(language=user_input.language)
+        intent_response = IntentResponse(language=user_input.language)
 
         try:
             result = await self._agent_loop.run_conversation(user_input.text)
@@ -47,18 +86,3 @@ class HomeAssistantAgentConversation(conversation.AbstractConversationAgent):
             response=intent_response,
             conversation_id=user_input.conversation_id,
         )
-
-
-async def async_setup_conversation(
-    hass: HomeAssistant,
-    entry: ConfigEntry,
-    agent_loop: AgentLoop,
-) -> None:
-    """Register the conversation agent."""
-    agent = HomeAssistantAgentConversation(entry, agent_loop)
-    conversation.async_set_agent(hass, entry, agent)
-
-
-async def async_unload_conversation(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Unregister the conversation agent."""
-    conversation.async_unset_agent(hass, entry)

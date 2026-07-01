@@ -17,7 +17,6 @@ from .agent.loop import AgentLoop
 from .agent.planner import Planner
 from .agent.verifier import Verifier
 from .const import CONF_MISSION_STATEMENT, CONF_RESUME_ON_STARTUP, CONF_WYOMING_PORT, DOMAIN
-from .conversation import async_setup_conversation, async_unload_conversation
 from .coordinator import StateCoordinator
 from .llm.ollama import OllamaClient
 from .memory.checkpoint import CheckpointStore
@@ -29,7 +28,7 @@ from .wyoming_server import WyomingServer
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = []
+PLATFORMS: list[Platform] = [Platform.CONVERSATION]
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
@@ -90,7 +89,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     await wyoming.start()
 
-    await async_setup_conversation(hass, entry, agent_loop)
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
+        "coordinator": coordinator,
+        "agent_loop": agent_loop,
+        "wyoming": wyoming,
+        "llm": llm,
+        "memory": memory,
+        "checkpoint": checkpoint,
+    }
+
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
     await async_setup_services(hass, entry.entry_id, agent_loop)
     async_register_startup_resume(
         hass,
@@ -106,15 +115,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.async_on_unload(coordinator.async_add_listener(_on_coordinator_update))
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
 
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
-        "coordinator": coordinator,
-        "agent_loop": agent_loop,
-        "wyoming": wyoming,
-        "llm": llm,
-        "memory": memory,
-        "checkpoint": checkpoint,
-    }
-
     _LOGGER.info("Home Assistant Agent initialized (Wyoming: %s)", wyoming.uri)
     return True
 
@@ -128,9 +128,12 @@ async def _safe_background_run(agent_loop: AgentLoop) -> None:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if not unload_ok:
+        return False
+
     data = hass.data.get(DOMAIN, {}).pop(entry.entry_id, {})
 
-    await async_unload_conversation(hass, entry)
     async_unload_services(hass)
 
     wyoming: WyomingServer | None = data.get("wyoming")
