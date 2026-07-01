@@ -33,7 +33,6 @@ from .memory.checkpoint import CheckpointStore
 from .memory.store import MemoryStore
 from .memory.summarizer import MemorySummarizer
 from .notify import Notifier
-from .releases.announcements import async_handle_release_announcements
 from .releases.store import ReleaseAnnouncementStore
 from .services import async_register_startup_resume, async_setup_services, async_unload_services
 from .wyoming_server import WyomingServer
@@ -85,6 +84,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     notifier = Notifier(hass, config)
 
     from homeassistant.loader import async_get_integration
+    from .releases.announcements import async_handle_release_announcements
     from .update import ReleaseUpdateCoordinator
 
     integration = await async_get_integration(hass, DOMAIN)
