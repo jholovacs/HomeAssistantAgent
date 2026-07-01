@@ -13,7 +13,7 @@ An autonomous AI agent custom integration for [Home Assistant](https://www.home-
 | Integration tests (Docker) | **passing** | 6/6 |
 | **Overall** | **passing** | 34/34 |
 
-Last successful CI run on `main`: 2026-07-01 19:57 UTC ([`0bc8270`](https://github.com/jholovacs/HomeAssistantAgent/actions/runs/28543925483))
+Last successful CI run on `main`: 2026-07-01 20:09 UTC ([`c8b6ab5`](https://github.com/jholovacs/HomeAssistantAgent/actions/runs/28544598917))
 <!-- CI-STATUS:END -->
 
 ## Features
