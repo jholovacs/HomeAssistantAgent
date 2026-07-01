@@ -36,6 +36,7 @@ class HomeAssistantAgentConversationEntity(
 
     _attr_has_entity_name = True
     _attr_name = None
+    _attr_supported_features = conversation.ConversationEntityFeature.CONTROL
 
     def __init__(self, entry: ConfigEntry, agent_loop: AgentLoop) -> None:
         self._entry = entry

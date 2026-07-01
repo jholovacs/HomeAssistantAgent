@@ -16,7 +16,7 @@ from .agent.executor import Executor
 from .agent.loop import AgentLoop
 from .agent.planner import Planner
 from .agent.verifier import Verifier
-from .const import CONF_MISSION_STATEMENT, CONF_RESUME_ON_STARTUP, CONF_WYOMING_PORT, DOMAIN
+from .const import CONF_MISSION_STATEMENT, CONF_OLLAMA_KEEP_ALIVE, CONF_RESUME_ON_STARTUP, CONF_WYOMING_PORT, DOMAIN
 from .coordinator import StateCoordinator
 from .llm.ollama import OllamaClient
 from .memory.checkpoint import CheckpointStore
@@ -51,6 +51,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         config["model"],
         temperature=config.get("temperature", 0.3),
         num_ctx=config.get("num_ctx", 8192),
+        keep_alive=config.get(CONF_OLLAMA_KEEP_ALIVE, "30m"),
         session=async_get_clientsession(hass),
     )
 

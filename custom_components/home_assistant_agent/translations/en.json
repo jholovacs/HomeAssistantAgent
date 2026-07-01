@@ -26,6 +26,7 @@
           "max_actions_per_cycle": "Max actions per cycle",
           "temperature": "LLM temperature",
           "num_ctx": "LLM context window",
+          "ollama_keep_alive": "Ollama keep alive",
           "admin_mode": "Admin mode",
           "resume_on_startup": "Resume on startup"
         },
@@ -36,7 +37,8 @@
           "entity_include": "Optional glob patterns limiting which entities the agent may act on (e.g. light.*, climate.*). Ignored when admin mode is enabled.",
           "entity_exclude": "Optional glob patterns for entities the agent must never change.",
           "admin_mode": "When enabled, the agent can call any Home Assistant service and see all entities (except excludes). homeassistant.*, hassio.*, supervisor.*, and auth.* remain blocked.",
-          "resume_on_startup": "When enabled, the agent resumes interrupted runs after Home Assistant restarts or power loss."
+          "resume_on_startup": "When enabled, the agent resumes interrupted runs after Home Assistant restarts or power loss.",
+          "ollama_keep_alive": "How long Ollama keeps the model loaded in memory (e.g. 30m, 1h, -1). Longer values improve prompt cache hits between requests."
         }
       },
       "reconfigure": {
@@ -55,6 +57,7 @@
           "max_actions_per_cycle": "Max actions per cycle",
           "temperature": "LLM temperature",
           "num_ctx": "LLM context window",
+          "ollama_keep_alive": "Ollama keep alive",
           "admin_mode": "Admin mode",
           "resume_on_startup": "Resume on startup"
         },
@@ -97,6 +100,7 @@
           "max_actions_per_cycle": "Max actions per cycle",
           "temperature": "LLM temperature",
           "num_ctx": "LLM context window",
+          "ollama_keep_alive": "Ollama keep alive",
           "admin_mode": "Admin mode",
           "resume_on_startup": "Resume on startup"
         },
@@ -108,7 +112,8 @@
           "entity_include": "Optional glob patterns limiting which entities the agent may act on. Ignored when admin mode is enabled.",
           "entity_exclude": "Optional glob patterns for entities the agent must never change.",
           "admin_mode": "When enabled, the agent can call any Home Assistant service and see all entities (except excludes).",
-          "resume_on_startup": "Resume interrupted agent runs after Home Assistant restarts."
+          "resume_on_startup": "Resume interrupted agent runs after Home Assistant restarts.",
+          "ollama_keep_alive": "How long Ollama keeps the model loaded (e.g. 30m, 1h, -1 for forever)."
         }
       }
     },

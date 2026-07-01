@@ -97,9 +97,8 @@ class Planner:
         scripts: str,
     ) -> AgentPlan:
         """Generate a plan from periodic background evaluation."""
-        system = build_system_prompt(admin_mode=self._admin_mode())
+        system = build_system_prompt(admin_mode=self._admin_mode(), mission=mission)
         user = BACKGROUND_USER_PROMPT.format(
-            mission=mission,
             preferences=preferences or "None recorded.",
             memory=memory,
             diff=diff,
@@ -120,9 +119,8 @@ class Planner:
         snapshot: str,
     ) -> AgentPlan:
         """Generate a plan from a user conversation."""
-        system = build_system_prompt(admin_mode=self._admin_mode())
+        system = build_system_prompt(admin_mode=self._admin_mode(), mission=mission)
         user = CONVERSATION_USER_PROMPT.format(
-            mission=mission,
             preferences=preferences or "None recorded.",
             memory=memory,
             user_message=user_message,
@@ -139,13 +137,12 @@ class Planner:
         current_state: str,
     ) -> AgentPlan:
         """Generate a revised plan after verification failure."""
-        system = build_system_prompt(admin_mode=self._admin_mode())
+        system = build_system_prompt(admin_mode=self._admin_mode(), mission=mission)
         user = RETRY_USER_PROMPT.format(
             failed_step=json.dumps(failed_step),
             error=error,
             current_state=current_state,
         )
-        user = f"Mission: {mission}\n\n{user}"
         return await self._request_plan(system, user)
 
     async def plan_resume(
@@ -160,11 +157,10 @@ class Planner:
         """Generate a plan to resume work after an interruption."""
         import json as json_module
 
-        system = build_system_prompt(admin_mode=self._admin_mode())
+        system = build_system_prompt(admin_mode=self._admin_mode(), mission=mission)
         pending_text = json_module.dumps([step_to_dict(step) for step in pending_steps], indent=2)
         completed_text = "\n".join(f"- {step}" for step in completed_steps) or "None"
         user = RESUME_USER_PROMPT.format(
-            mission=mission,
             completed_steps=completed_text,
             pending_steps=pending_text,
             memory=memory,

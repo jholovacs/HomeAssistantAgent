@@ -22,6 +22,7 @@ from .const import (
     CONF_MODEL,
     CONF_NOTIFY_SERVICES,
     CONF_NUM_CTX,
+    CONF_OLLAMA_KEEP_ALIVE,
     CONF_OLLAMA_URL,
     CONF_POLL_INTERVAL,
     CONF_RESUME_ON_STARTUP,
@@ -32,6 +33,7 @@ from .const import (
     DEFAULT_MISSION_STATEMENT,
     DEFAULT_MODEL,
     DEFAULT_NUM_CTX,
+    DEFAULT_OLLAMA_KEEP_ALIVE,
     DEFAULT_OLLAMA_URL,
     DEFAULT_POLL_INTERVAL,
     DEFAULT_RESUME_ON_STARTUP,
@@ -68,6 +70,8 @@ def _normalize_entry(data: dict) -> dict:
     result[CONF_RESUME_ON_STARTUP] = bool(
         data.get(CONF_RESUME_ON_STARTUP, DEFAULT_RESUME_ON_STARTUP)
     )
+    keep_alive = data.get(CONF_OLLAMA_KEEP_ALIVE, DEFAULT_OLLAMA_KEEP_ALIVE)
+    result[CONF_OLLAMA_KEEP_ALIVE] = str(keep_alive).strip() or DEFAULT_OLLAMA_KEEP_ALIVE
     return result
 
 
@@ -123,6 +127,10 @@ def _agent_settings_schema(models: list[str], defaults: dict | None = None) -> v
                 CONF_NUM_CTX,
                 default=defaults.get(CONF_NUM_CTX, DEFAULT_NUM_CTX),
             ): cv.positive_int,
+            vol.Optional(
+                CONF_OLLAMA_KEEP_ALIVE,
+                default=defaults.get(CONF_OLLAMA_KEEP_ALIVE, DEFAULT_OLLAMA_KEEP_ALIVE),
+            ): str,
             vol.Optional(
                 CONF_ADMIN_MODE,
                 default=defaults.get(CONF_ADMIN_MODE, DEFAULT_ADMIN_MODE),

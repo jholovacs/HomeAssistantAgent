@@ -41,15 +41,16 @@ RESTRICTED_MODE_RULES = """Standard mode (restricted):
 - Only act on entities present in the provided context (respect entity include filters)."""
 
 
-def build_system_prompt(*, admin_mode: bool) -> str:
+def build_system_prompt(*, admin_mode: bool, mission: str = "") -> str:
     """Build the system prompt for the current access mode."""
     mode_rules = ADMIN_MODE_RULES if admin_mode else RESTRICTED_MODE_RULES
-    return SYSTEM_PROMPT.format(mode_rules=mode_rules, schema=PLAN_JSON_SCHEMA)
+    prompt = SYSTEM_PROMPT.format(mode_rules=mode_rules, schema=PLAN_JSON_SCHEMA)
+    mission = mission.strip()
+    if mission:
+        prompt = f"{prompt}\n\nMission statement:\n{mission}"
+    return prompt
 
-BACKGROUND_USER_PROMPT = """Mission statement:
-{mission}
-
-User preferences:
+BACKGROUND_USER_PROMPT = """User preferences:
 {preferences}
 
 Recent agent memory:
@@ -73,10 +74,7 @@ Scripts:
 Evaluate whether action is needed. If yes, produce a plan. If not, explain why in reasoning with empty steps.
 """
 
-CONVERSATION_USER_PROMPT = """Mission statement:
-{mission}
-
-User preferences:
+CONVERSATION_USER_PROMPT = """User preferences:
 {preferences}
 
 Recent agent memory:
@@ -100,12 +98,7 @@ Current entity state: {current_state}
 Produce a revised plan (full JSON) to complete the goal or explain why it cannot be done.
 """
 
-RESUME_USER_PROMPT = """Home Assistant restarted or lost power while you were executing a plan.
-
-Mission statement:
-{mission}
-
-Completed steps before interruption:
+RESUME_USER_PROMPT = """Completed steps before interruption:
 {completed_steps}
 
 Remaining steps that were planned but not executed:

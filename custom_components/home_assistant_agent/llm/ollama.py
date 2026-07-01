@@ -9,6 +9,7 @@ from typing import Any
 import aiohttp
 
 from .base import LLMClient
+from .prompt_log import log_llm_request, log_llm_response
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -23,12 +24,14 @@ class OllamaClient(LLMClient):
         *,
         temperature: float = 0.3,
         num_ctx: int = 8192,
+        keep_alive: str | int = "30m",
         session: aiohttp.ClientSession | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._model = model
         self._temperature = temperature
         self._num_ctx = num_ctx
+        self._keep_alive = keep_alive
         self._session = session
         self._owns_session = session is None
 
@@ -78,6 +81,7 @@ class OllamaClient(LLMClient):
             "model": self._model,
             "messages": messages,
             "stream": False,
+            "keep_alive": self._keep_alive,
             "options": {
                 "temperature": self._temperature,
                 "num_ctx": self._num_ctx,
@@ -85,6 +89,13 @@ class OllamaClient(LLMClient):
         }
         if json_mode:
             payload["format"] = "json"
+
+        log_llm_request(
+            _LOGGER,
+            model=self._model,
+            messages=messages,
+            json_mode=json_mode,
+        )
 
         session = await self._get_session()
         async with session.post(
@@ -96,7 +107,17 @@ class OllamaClient(LLMClient):
             data = await resp.json()
 
         message = data.get("message", {})
-        return message.get("content", "")
+        content = message.get("content", "")
+        log_llm_response(
+            _LOGGER,
+            model=self._model,
+            content=content,
+            metadata={
+                "total_duration_ms": data.get("total_duration"),
+                "eval_count": data.get("eval_count"),
+            },
+        )
+        return content
 
     async def summarize(self, text: str) -> str:
         """Compress text into 1-2 sentences."""
