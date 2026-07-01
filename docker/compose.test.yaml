@@ -1,0 +1,29 @@
+# Integration test stack for Home Assistant Agent.
+# Run: docker compose -f docker/compose.test.yaml up --build -d
+
+services:
+  ollama-mock:
+    build:
+      context: ./ollama-mock
+    ports:
+      - "11434:11434"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:11434/api/tags')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    depends_on:
+      ollama-mock:
+        condition: service_healthy
+    ports:
+      - "8123:8123"
+      - "10500:10500"
+    volumes:
+      - ./homeassistant:/config
+      - ../custom_components/home_assistant_agent:/config/custom_components/home_assistant_agent:ro
+    environment:
+      TZ: UTC

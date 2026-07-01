@@ -1,0 +1,18 @@
+# Minimal Home Assistant config for integration tests.
+
+default_config:
+
+homeassistant:
+  name: Integration Test Home
+  unit_system: metric
+  time_zone: UTC
+
+input_boolean:
+  agent_test_switch:
+    name: Agent Test Switch
+    initial: false
+
+logger:
+  default: info
+  logs:
+    custom_components.home_assistant_agent: debug

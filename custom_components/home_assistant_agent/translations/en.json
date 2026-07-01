@@ -1,0 +1,86 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Ollama",
+        "description": "Enter the base URL of your Ollama server. Home Assistant must be able to reach this address.",
+        "data": {
+          "ollama_url": "Ollama URL"
+        },
+        "data_description": {
+          "ollama_url": "Examples: http://127.0.0.1:11434 (same machine), http://192.168.1.50:11434 (LAN), http://host.docker.internal:11434 (Ollama on host when HA runs in Docker)."
+        }
+      },
+      "agent": {
+        "title": "Configure Home Assistant Agent",
+        "description": "Choose a model from your Ollama server and set how the agent should behave.",
+        "data": {
+          "model": "Model",
+          "mission_statement": "Mission statement",
+          "poll_interval": "Poll interval (seconds)",
+          "wyoming_port": "Wyoming server port",
+          "notify_services": "Notify services (comma-separated)",
+          "assist_satellite": "Assist satellite entity (optional)",
+          "entity_include": "Entity include patterns (comma-separated globs)",
+          "entity_exclude": "Entity exclude patterns (comma-separated globs)",
+          "max_actions_per_cycle": "Max actions per cycle",
+          "temperature": "LLM temperature",
+          "num_ctx": "LLM context window"
+        },
+        "data_description": {
+          "model": "Models are loaded from your Ollama server. Use an instruct model with reliable JSON output (e.g. qwen2.5:7b-instruct). Run `ollama pull <model>` first if a model is missing.",
+          "mission_statement": "Describe how you want your home to behave. The agent uses this as its primary goal when acting autonomously.",
+          "poll_interval": "How often the agent evaluates your home in the background.",
+          "entity_include": "Optional glob patterns limiting which entities the agent may act on (e.g. light.*, climate.*).",
+          "entity_exclude": "Optional glob patterns for entities the agent must never change."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to Ollama. Check the URL, firewall, and that Ollama is running (`ollama serve`).",
+      "model_not_found": "The selected model is no longer available on the Ollama server.",
+      "no_models": "Ollama is reachable but returned no models. Pull a model first, e.g. `ollama pull qwen2.5:7b-instruct`."
+    },
+    "abort": {
+      "already_configured": "Already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Ollama connection",
+        "description": "Update the Ollama server URL. The integration will reload available models.",
+        "data": {
+          "ollama_url": "Ollama URL"
+        },
+        "data_description": {
+          "ollama_url": "Must be reachable from the Home Assistant host (not from your browser unless they are the same machine)."
+        }
+      },
+      "agent": {
+        "title": "Home Assistant Agent options",
+        "description": "Update the model and agent behavior.",
+        "data": {
+          "model": "Model",
+          "mission_statement": "Mission statement",
+          "poll_interval": "Poll interval (seconds)",
+          "wyoming_port": "Wyoming server port",
+          "notify_services": "Notify services (comma-separated)",
+          "assist_satellite": "Assist satellite entity (optional)",
+          "entity_include": "Entity include patterns (comma-separated globs)",
+          "entity_exclude": "Entity exclude patterns (comma-separated globs)",
+          "max_actions_per_cycle": "Max actions per cycle",
+          "temperature": "LLM temperature",
+          "num_ctx": "LLM context window"
+        },
+        "data_description": {
+          "model": "Pick from models currently installed on your Ollama server."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to Ollama. Check the URL, firewall, and that Ollama is running.",
+      "no_models": "No models found on the Ollama server. Pull a model with `ollama pull` and try again."
+    }
+  }
+}

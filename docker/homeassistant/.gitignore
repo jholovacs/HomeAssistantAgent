@@ -1,0 +1,4 @@
+# Ignore Home Assistant runtime data; only track static test config.
+*
+!.gitignore
+!configuration.yaml

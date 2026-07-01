@@ -1,0 +1,7 @@
+{
+  "name": "Home Assistant Agent",
+  "content_in_root": false,
+  "filename": "home_assistant_agent",
+  "homeassistant": "2024.1.0",
+  "render_readme": true
+}

@@ -1,0 +1,7 @@
+# Dev/test dependencies (HA installs runtime deps via manifest.json)
+pytest>=8.0
+pytest-asyncio>=0.23
+aiohttp>=3.9
+wyoming>=1.5.4
+
+# Optional (Linux/macOS only): pytest-homeassistant-custom-component for integration tests

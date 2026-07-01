@@ -1,0 +1,76 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+*.py,cover
+pytest-cache-files-*/
+unit-results.xml
+integration-results.xml
+test-results/
+
+# IDE / editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Docker / Home Assistant test runtime (bind-mounted config dir)
+docker/homeassistant/.storage/
+docker/homeassistant/deps/
+docker/homeassistant/home-assistant_v2.db
+docker/homeassistant/home-assistant.log*
+docker/homeassistant/.ha_run.lock
+docker/homeassistant/.HA_VERSION
+docker/homeassistant/blueprints/
+docker/homeassistant/secrets.yaml
+docker/homeassistant/automations.yaml
+docker/homeassistant/scripts.yaml
+docker/homeassistant/scenes.yaml
+
+# Local env
+.env
+.env.*
+!.env.example

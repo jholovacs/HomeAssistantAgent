@@ -1,0 +1,3 @@
+# Dependencies for Docker integration tests (run on host, not inside HA container)
+-r requirements.txt
+pytest-timeout>=2.3
