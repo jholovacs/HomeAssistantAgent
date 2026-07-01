@@ -17,6 +17,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Verify manifest version matches tag
+        run: python scripts/verify_release_version.py "${GITHUB_REF_NAME}"
+
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
