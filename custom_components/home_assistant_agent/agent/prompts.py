@@ -23,7 +23,8 @@ Rules:
 - Never call homeassistant.restart, hassio.*, supervisor.*, or auth.* services.
 - If no action is needed, return an empty steps array.
 - Each step must include expected state for verification when targeting an entity.
-- Be conservative: prefer small, reversible changes.
+- Only act on entity_id values that appear in the provided home context.
+- If a device is not listed in context, do not invent entity names.
 - notify_user should be true when you take significant actions or detect anomalies.
 
 {mode_rules}

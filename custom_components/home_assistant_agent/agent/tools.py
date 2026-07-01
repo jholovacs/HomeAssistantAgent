@@ -20,17 +20,6 @@ ALLOWED_SERVICE_PREFIXES = (
     "valve.",
 )
 
-SERVICE_EXAMPLES = """
-Common services:
-- light.turn_on / light.turn_off (target: entity_id, data: brightness, color_temp)
-- switch.turn_on / switch.turn_off
-- climate.set_temperature (data: temperature)
-- scene.turn_on (target: entity_id)
-- script.turn_on (target: entity_id)
-- automation.trigger (target: entity_id)
-"""
-
-
 def is_allowed_service(service: str, *, admin_mode: bool = False) -> bool:
     """Return True if the service is permitted."""
     if not service or "." not in service:
@@ -43,3 +32,27 @@ def is_allowed_service(service: str, *, admin_mode: bool = False) -> bool:
     if admin_mode:
         return True
     return any(service.startswith(prefix) for prefix in ALLOWED_SERVICE_PREFIXES)
+
+
+def entity_ids_from_step(
+    *,
+    target: dict | None = None,
+    data: dict | None = None,
+    expected: dict | None = None,
+) -> list[str]:
+    """Collect entity IDs referenced by a plan step."""
+    ids: list[str] = []
+
+    def add(value: object) -> None:
+        if isinstance(value, str) and value:
+            ids.append(value)
+        elif isinstance(value, list):
+            ids.extend(item for item in value if isinstance(item, str) and item)
+
+    target = target or {}
+    data = data or {}
+    expected = expected or {}
+    add(target.get("entity_id"))
+    add(data.get("entity_id"))
+    add(expected.get("entity_id"))
+    return ids

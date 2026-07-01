@@ -151,6 +151,18 @@ class StateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         return {"entities": changes}
 
+    def known_entity_ids(self) -> frozenset[str]:
+        """Return entity IDs currently visible in the coordinator snapshot."""
+        data = self.data or {}
+        snapshot = data.get("snapshot", {})
+        ids: set[str] = set()
+        for key in ("entities", "scenes", "scripts", "automations"):
+            for item in snapshot.get(key, []):
+                entity_id = item.get("entity_id")
+                if entity_id:
+                    ids.add(entity_id)
+        return frozenset(ids)
+
     def format_snapshot_for_prompt(self, max_entities: int = 80) -> str:
         """Format snapshot as text for LLM context."""
         data = self.data or {}

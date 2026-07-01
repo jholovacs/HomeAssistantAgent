@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "custom_components"))
 
-from home_assistant_agent.agent.tools import is_allowed_service
+from home_assistant_agent.agent.tools import entity_ids_from_step, is_allowed_service
 
 
 def test_allowed_light_service():
@@ -35,3 +35,11 @@ def test_admin_mode_allows_any_domain_except_blocked():
 def test_non_allowlisted_domain_blocked_without_admin_mode():
     assert not is_allowed_service("number.set_value")
     assert not is_allowed_service("todo.add_item")
+
+
+def test_entity_ids_from_step_collects_target_and_expected():
+    ids = entity_ids_from_step(
+        target={"entity_id": "climate.office_fan"},
+        expected={"entity_id": "climate.office_fan", "state": "cool"},
+    )
+    assert ids == ["climate.office_fan", "climate.office_fan"]

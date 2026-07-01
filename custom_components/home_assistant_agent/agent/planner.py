@@ -17,7 +17,7 @@ from .prompts import (
     RETRY_USER_PROMPT,
     build_system_prompt,
 )
-from .tools import is_allowed_service
+from .tools import entity_ids_from_step, is_allowed_service
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -97,6 +97,7 @@ class Planner:
         automations: str,
         scenes: str,
         scripts: str,
+        known_entity_ids: frozenset[str] | None = None,
     ) -> AgentPlan:
         """Generate a plan from periodic background evaluation."""
         system = build_system_prompt(admin_mode=self._admin_mode(), mission=mission)
@@ -110,7 +111,7 @@ class Planner:
             scenes=scenes,
             scripts=scripts,
         )
-        return await self._request_plan(system, user)
+        return await self._request_plan(system, user, known_entity_ids=known_entity_ids)
 
     async def plan_conversation(
         self,
@@ -120,6 +121,7 @@ class Planner:
         memory: str,
         user_message: str,
         snapshot: str,
+        known_entity_ids: frozenset[str] | None = None,
     ) -> AgentPlan:
         """Generate a plan from a user conversation."""
         system = build_system_prompt(admin_mode=self._admin_mode(), mission=mission)
@@ -129,7 +131,7 @@ class Planner:
             user_message=user_message,
             snapshot=snapshot,
         )
-        return await self._request_plan(system, user)
+        return await self._request_plan(system, user, known_entity_ids=known_entity_ids)
 
     async def plan_retry(
         self,
@@ -138,6 +140,7 @@ class Planner:
         failed_step: dict[str, Any],
         error: str,
         current_state: str,
+        known_entity_ids: frozenset[str] | None = None,
     ) -> AgentPlan:
         """Generate a revised plan after verification failure."""
         system = build_system_prompt(admin_mode=self._admin_mode(), mission=mission)
@@ -146,7 +149,7 @@ class Planner:
             error=error,
             current_state=current_state,
         )
-        return await self._request_plan(system, user)
+        return await self._request_plan(system, user, known_entity_ids=known_entity_ids)
 
     async def plan_resume(
         self,
@@ -171,7 +174,13 @@ class Planner:
         )
         return await self._request_plan(system, user)
 
-    async def _request_plan(self, system: str, user: str) -> AgentPlan:
+    async def _request_plan(
+        self,
+        system: str,
+        user: str,
+        *,
+        known_entity_ids: frozenset[str] | None = None,
+    ) -> AgentPlan:
         messages = [
             {"role": "system", "content": system},
             {"role": "user", "content": user},
@@ -190,9 +199,33 @@ class Planner:
                 ),
                 summary_for_memory="Ollama request failed or timed out.",
             )
-        return self._parse_plan(content)
+        return self._parse_plan(content, known_entity_ids)
 
-    def _parse_plan(self, content: str) -> AgentPlan:
+    def _step_references_known_entities(
+        self,
+        raw_step: dict[str, Any],
+        known_entity_ids: frozenset[str],
+    ) -> bool:
+        referenced = entity_ids_from_step(
+            target=raw_step.get("target"),
+            data=raw_step.get("data"),
+            expected=raw_step.get("expected"),
+        )
+        for entity_id in referenced:
+            if entity_id not in known_entity_ids:
+                _LOGGER.warning(
+                    "Dropping plan step for unknown entity %s (%s)",
+                    entity_id,
+                    raw_step.get("service"),
+                )
+                return False
+        return True
+
+    def _parse_plan(
+        self,
+        content: str,
+        known_entity_ids: frozenset[str] | None = None,
+    ) -> AgentPlan:
         """Parse and validate LLM JSON output."""
         try:
             if hasattr(self._llm, "parse_json_response"):
@@ -214,6 +247,10 @@ class Planner:
             service = raw_step.get("service", "")
             if not is_allowed_service(service, admin_mode=self._admin_mode()):
                 _LOGGER.warning("Blocked disallowed service: %s", service)
+                continue
+            if known_entity_ids and not self._step_references_known_entities(
+                raw_step, known_entity_ids
+            ):
                 continue
             steps.append(
                 PlanStep(

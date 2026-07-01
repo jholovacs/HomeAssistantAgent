@@ -43,6 +43,28 @@ def test_parse_valid_plan(planner):
     assert plan.notify_user is True
 
 
+def test_parse_drops_unknown_entity(planner):
+    content = json.dumps(
+        {
+            "reasoning": "Cool office",
+            "steps": [
+                {
+                    "service": "climate.set_fan_mode",
+                    "target": {"entity_id": "climate.office_fan"},
+                    "data": {"fan_mode": "on"},
+                    "expected": {"entity_id": "climate.office_fan", "state": "cool"},
+                }
+            ],
+            "notify_user": False,
+            "response_text": "",
+            "summary_for_memory": "",
+        }
+    )
+    known = frozenset({"climate.living_room"})
+    plan = planner._parse_plan(content, known)
+    assert plan.steps == []
+
+
 def test_parse_blocks_disallowed_service(planner):
     content = json.dumps(
         {

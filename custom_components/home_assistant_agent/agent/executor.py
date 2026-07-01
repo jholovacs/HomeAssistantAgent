@@ -31,6 +31,8 @@ class Executor:
         if not self._hass.services.has_service(domain, service):
             raise ValueError(f"Service does not exist: {step.service}")
 
+        self._require_entities_available(step)
+
         service_data = dict(step.data)
         target = step.target or {}
 
@@ -71,6 +73,12 @@ class Executor:
         if isinstance(eid, str) and eid not in ids:
             ids.append(eid)
         return ids
+
+    def _require_entities_available(self, step: PlanStep) -> None:
+        for entity_id in self._extract_entity_ids(step):
+            state = self._hass.states.get(entity_id)
+            if state is None:
+                raise ValueError(f"Entity not found: {entity_id}")
 
     def describe_step(self, step: PlanStep) -> str:
         """Human-readable step description."""

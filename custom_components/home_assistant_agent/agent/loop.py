@@ -98,6 +98,15 @@ class AgentLoop:
     def _mark_activity_ended(self) -> None:
         self._last_activity_ended_at = self._now()
 
+    def _is_fatal_step_error(self, message: str) -> bool:
+        """Return True when retrying the step cannot succeed."""
+        lowered = message.lower()
+        return (
+            "not found" in lowered
+            or "does not exist" in lowered
+            or "unknown entity" in lowered
+        )
+
     def _current_time_for_prompt(self) -> str:
         try:
             from homeassistant.util import dt as dt_util
@@ -132,6 +141,7 @@ class AgentLoop:
             self._running = True
             try:
                 mission = self._config.get(CONF_MISSION_STATEMENT, "")
+                known_entity_ids = self._coordinator.known_entity_ids()
                 plan = await self._planner.plan_background(
                     mission=mission,
                     preferences=self._memory.get_preferences_text(),
@@ -142,6 +152,7 @@ class AgentLoop:
                     automations=self._coordinator.format_list_for_prompt("automations"),
                     scenes=self._coordinator.format_list_for_prompt("scenes"),
                     scripts=self._coordinator.format_list_for_prompt("scripts"),
+                    known_entity_ids=known_entity_ids,
                 )
                 return await self._execute_plan(
                     plan,
@@ -223,6 +234,7 @@ class AgentLoop:
                     memory=self._memory.get_summaries_text(),
                     user_message=user_message,
                     snapshot=self._coordinator.format_snapshot_for_prompt(),
+                    known_entity_ids=self._coordinator.known_entity_ids(),
                 )
                 return await self._execute_plan(
                     plan,
@@ -305,6 +317,8 @@ class AgentLoop:
                         attempt + 1,
                         last_error,
                     )
+                    if self._is_fatal_step_error(last_error):
+                        break
                     if attempt < MAX_RETRIES - 1:
                         plan = await self._planner.plan_retry(
                             mission=self._config.get(CONF_MISSION_STATEMENT, ""),
@@ -316,12 +330,15 @@ class AgentLoop:
                             },
                             error=last_error,
                             current_state=self._verifier.format_states(current_states),
+                            known_entity_ids=self._coordinator.known_entity_ids(),
                         )
                         if plan.steps:
                             step = plan.steps[0]
                 except Exception as err:
                     last_error = str(err)
-                    _LOGGER.error("Step execution failed: %s", err)
+                    _LOGGER.warning("Step execution failed: %s", err)
+                    if self._is_fatal_step_error(last_error):
+                        break
                     if attempt < MAX_RETRIES - 1:
                         await asyncio.sleep(1)
                     else:
