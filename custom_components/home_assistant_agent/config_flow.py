@@ -14,6 +14,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import (
     CONF_ADMIN_MODE,
+    CONF_ANNOUNCE_RELEASES,
     CONF_ASSIST_SATELLITE,
     CONF_ENTITY_EXCLUDE,
     CONF_ENTITY_INCLUDE,
@@ -30,6 +31,7 @@ from .const import (
     CONF_TEMPERATURE,
     CONF_WYOMING_PORT,
     DEFAULT_ADMIN_MODE,
+    DEFAULT_ANNOUNCE_RELEASES,
     DEFAULT_MAX_ACTIONS,
     DEFAULT_MISSION_STATEMENT,
     DEFAULT_MODEL,
@@ -71,6 +73,9 @@ def _normalize_entry(data: dict) -> dict:
     result[CONF_ADMIN_MODE] = bool(data.get(CONF_ADMIN_MODE, DEFAULT_ADMIN_MODE))
     result[CONF_RESUME_ON_STARTUP] = bool(
         data.get(CONF_RESUME_ON_STARTUP, DEFAULT_RESUME_ON_STARTUP)
+    )
+    result[CONF_ANNOUNCE_RELEASES] = bool(
+        data.get(CONF_ANNOUNCE_RELEASES, DEFAULT_ANNOUNCE_RELEASES)
     )
     keep_alive = data.get(CONF_OLLAMA_KEEP_ALIVE, DEFAULT_OLLAMA_KEEP_ALIVE)
     result[CONF_OLLAMA_KEEP_ALIVE] = str(keep_alive).strip() or DEFAULT_OLLAMA_KEEP_ALIVE
@@ -149,6 +154,10 @@ def _agent_settings_schema(models: list[str], defaults: dict | None = None) -> v
             vol.Optional(
                 CONF_RESUME_ON_STARTUP,
                 default=defaults.get(CONF_RESUME_ON_STARTUP, DEFAULT_RESUME_ON_STARTUP),
+            ): bool,
+            vol.Optional(
+                CONF_ANNOUNCE_RELEASES,
+                default=defaults.get(CONF_ANNOUNCE_RELEASES, DEFAULT_ANNOUNCE_RELEASES),
             ): bool,
         }
     )

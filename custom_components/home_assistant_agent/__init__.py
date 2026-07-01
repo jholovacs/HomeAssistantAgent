@@ -17,11 +17,13 @@ from .agent.loop import AgentLoop
 from .agent.planner import Planner
 from .agent.verifier import Verifier
 from .const import (
+    CONF_ANNOUNCE_RELEASES,
     CONF_MISSION_STATEMENT,
     CONF_OLLAMA_KEEP_ALIVE,
     CONF_OLLAMA_REQUEST_TIMEOUT,
     CONF_RESUME_ON_STARTUP,
     CONF_WYOMING_PORT,
+    DEFAULT_ANNOUNCE_RELEASES,
     DOMAIN,
 )
 from .llm.errors import OllamaRequestError
@@ -31,12 +33,14 @@ from .memory.checkpoint import CheckpointStore
 from .memory.store import MemoryStore
 from .memory.summarizer import MemorySummarizer
 from .notify import Notifier
+from .releases.announcements import async_handle_release_announcements
+from .releases.store import ReleaseAnnouncementStore
 from .services import async_register_startup_resume, async_setup_services, async_unload_services
 from .wyoming_server import WyomingServer
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = [Platform.CONVERSATION]
+PLATFORMS: list[Platform] = [Platform.CONVERSATION, Platform.UPDATE]
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
@@ -80,6 +84,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     summarizer = MemorySummarizer(llm)
     notifier = Notifier(hass, config)
 
+    from homeassistant.loader import async_get_integration
+    from .update import ReleaseUpdateCoordinator
+
+    integration = await async_get_integration(hass, DOMAIN)
+    installed_version = integration.version or "0.0.0"
+    session = async_get_clientsession(hass)
+    release_coordinator = ReleaseUpdateCoordinator(hass, session, installed_version)
+    release_store = ReleaseAnnouncementStore(hass)
+    await release_store.async_load()
+
     agent_loop = AgentLoop(
         hass,
         config,
@@ -106,6 +120,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "llm": llm,
         "memory": memory,
         "checkpoint": checkpoint,
+        "release_coordinator": release_coordinator,
+        "release_store": release_store,
+        "notifier": notifier,
     }
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -117,6 +134,33 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         agent_loop,
         resume_on_startup=config.get(CONF_RESUME_ON_STARTUP, True),
     )
+
+    try:
+        await release_coordinator.async_config_entry_first_refresh()
+    except Exception as err:
+        _LOGGER.debug("Release check skipped on startup: %s", err)
+
+    announce_releases = config.get(CONF_ANNOUNCE_RELEASES, DEFAULT_ANNOUNCE_RELEASES)
+
+    async def _run_release_announcements() -> None:
+        try:
+            await async_handle_release_announcements(
+                session=session,
+                notifier=notifier,
+                store=release_store,
+                installed_version=installed_version,
+                announce_releases=announce_releases,
+            )
+        except Exception as err:
+            _LOGGER.debug("Release announcement skipped: %s", err)
+
+    hass.async_create_task(_run_release_announcements())
+
+    @callback
+    def _on_release_update() -> None:
+        hass.async_create_task(_run_release_announcements())
+
+    entry.async_on_unload(release_coordinator.async_add_listener(_on_release_update))
 
     @callback
     def _on_coordinator_update() -> None:

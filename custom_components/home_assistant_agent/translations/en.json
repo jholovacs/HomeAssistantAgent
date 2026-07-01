@@ -29,7 +29,8 @@
           "ollama_keep_alive": "Ollama keep alive",
           "ollama_request_timeout": "Ollama request timeout (seconds)",
           "admin_mode": "Admin mode",
-          "resume_on_startup": "Resume on startup"
+          "resume_on_startup": "Resume on startup",
+          "announce_releases": "Announce releases"
         },
         "data_description": {
           "model": "Models are loaded from your Ollama server. Use an instruct model with reliable JSON output (e.g. qwen2.5:7b-instruct). Run `ollama pull <model>` first if a model is missing.",
@@ -39,6 +40,7 @@
           "entity_exclude": "Optional glob patterns for entities the agent must never change.",
           "admin_mode": "When enabled, the agent can call any Home Assistant service and see all entities (except excludes). homeassistant.*, hassio.*, supervisor.*, and auth.* remain blocked.",
           "resume_on_startup": "When enabled, the agent resumes interrupted runs after Home Assistant restarts or power loss.",
+          "announce_releases": "Notify and optionally announce when you upgrade the integration or when a newer version is available on GitHub.",
           "ollama_keep_alive": "How long Ollama keeps the model loaded in memory (e.g. 30m, 1h, -1). Longer values improve prompt cache hits between requests.",
           "ollama_request_timeout": "Maximum seconds to wait for Ollama to finish a chat request. Increase this for slow models or large context windows (default 600)."
         }
@@ -62,7 +64,8 @@
           "ollama_keep_alive": "Ollama keep alive",
           "ollama_request_timeout": "Ollama request timeout (seconds)",
           "admin_mode": "Admin mode",
-          "resume_on_startup": "Resume on startup"
+          "resume_on_startup": "Resume on startup",
+          "announce_releases": "Announce releases"
         },
         "data_description": {
           "ollama_url": "Must be reachable from the Home Assistant host.",
@@ -72,7 +75,8 @@
           "entity_include": "Optional glob patterns limiting which entities the agent may act on. Ignored when admin mode is enabled.",
           "entity_exclude": "Optional glob patterns for entities the agent must never change.",
           "admin_mode": "Allow any Home Assistant service except homeassistant.*, hassio.*, supervisor.*, and auth.*.",
-          "resume_on_startup": "Resume interrupted runs after Home Assistant restarts or power loss."
+          "resume_on_startup": "Resume interrupted runs after Home Assistant restarts or power loss.",
+          "announce_releases": "Notify when you upgrade or when a newer version is available."
         }
       }
     },
@@ -106,7 +110,8 @@
           "ollama_keep_alive": "Ollama keep alive",
           "ollama_request_timeout": "Ollama request timeout (seconds)",
           "admin_mode": "Admin mode",
-          "resume_on_startup": "Resume on startup"
+          "resume_on_startup": "Resume on startup",
+          "announce_releases": "Announce releases"
         },
         "data_description": {
           "ollama_url": "Must be reachable from the Home Assistant host.",
@@ -117,6 +122,7 @@
           "entity_exclude": "Optional glob patterns for entities the agent must never change.",
           "admin_mode": "When enabled, the agent can call any Home Assistant service and see all entities (except excludes).",
           "resume_on_startup": "Resume interrupted agent runs after Home Assistant restarts.",
+          "announce_releases": "Notify when you upgrade or when a newer version is available on GitHub.",
           "ollama_keep_alive": "How long Ollama keeps the model loaded (e.g. 30m, 1h, -1 for forever).",
           "ollama_request_timeout": "Maximum seconds to wait for Ollama responses (default 600)."
         }
