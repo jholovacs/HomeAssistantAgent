@@ -45,7 +45,7 @@ class AgentWyomingHandler(AsyncEventHandler):
                             url="https://github.com/jholovacs/HomeAssistantAgent",
                         ),
                         installed=True,
-                        version="0.1.0",
+                        version="0.2.0",
                         models=[
                             HandleModel(
                                 name="default",
@@ -56,7 +56,7 @@ class AgentWyomingHandler(AsyncEventHandler):
                                 ),
                                 installed=True,
                                 description=None,
-                                version="0.1.0",
+                                version="0.2.0",
                             )
                         ],
                         supports_handled_streaming=False,
