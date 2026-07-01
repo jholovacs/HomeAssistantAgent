@@ -68,9 +68,12 @@ curl http://<ollama-host>:11434/api/tags
 
 #### HACS (recommended)
 
-1. Add this repository as a [custom HACS repository](https://hacs.xyz/docs/faq/custom_repositories/).
-2. Install **Home Assistant Agent** from HACS.
-3. Restart Home Assistant.
+1. In HACS, open the **⋮** menu → **Custom repositories**.
+2. Enter `https://github.com/jholovacs/HomeAssistantAgent` and set category to **Integration**, then click **Add**.
+3. Go to **HACS → Integrations** and search for **Home Assistant Agent** (custom repos do not appear in the default community browse list).
+4. Click **Download**, then restart Home Assistant.
+
+If the repository does not appear after step 2, check for a red error toast — HACS requires a valid `hacs.json`, `manifest.json`, and `brand/icon.png` in the integration folder.
 
 #### Manual
 
