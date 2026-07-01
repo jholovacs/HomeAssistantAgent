@@ -65,6 +65,16 @@ class AgentLoop:
     def is_running(self) -> bool:
         return self._running
 
+    def _current_time_for_prompt(self) -> str:
+        try:
+            from homeassistant.util import dt as dt_util
+
+            return dt_util.now().strftime("%Y-%m-%d %H:%M %Z")
+        except ImportError:
+            from datetime import datetime, timezone
+
+            return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
     async def run_background(self) -> RunResult | None:
         """Run agent cycle from coordinator update."""
         if self._lock.locked():
@@ -75,10 +85,6 @@ class AgentLoop:
             _LOGGER.info("Pending checkpoint found; resuming instead of new background run")
             return await self.run_resume(reason="checkpoint")
 
-        if not self._coordinator.has_pending_changes():
-            _LOGGER.debug("No home state changes; skipping background agent run")
-            return None
-
         async with self._lock:
             self._running = True
             try:
@@ -87,6 +93,7 @@ class AgentLoop:
                     mission=mission,
                     preferences=self._memory.get_preferences_text(),
                     memory=self._memory.get_summaries_text(),
+                    current_time=self._current_time_for_prompt(),
                     diff=self._coordinator.format_diff_for_prompt(),
                     snapshot=self._coordinator.format_snapshot_for_prompt(),
                     automations=self._coordinator.format_list_for_prompt("automations"),

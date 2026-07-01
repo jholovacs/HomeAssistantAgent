@@ -50,7 +50,9 @@ def build_system_prompt(*, admin_mode: bool, mission: str = "") -> str:
         prompt = f"{prompt}\n\nMission statement:\n{mission}"
     return prompt
 
-BACKGROUND_USER_PROMPT = """User preferences:
+BACKGROUND_USER_PROMPT = """Current time: {current_time}
+
+User preferences:
 {preferences}
 
 Recent agent memory:
@@ -71,7 +73,9 @@ Scenes:
 Scripts:
 {scripts}
 
-Evaluate whether action is needed. If yes, produce a plan. If not, explain why in reasoning with empty steps.
+This is a periodic proactive evaluation. Review the mission even when no entity states changed.
+Look for improvements related to comfort, safety, efficiency, schedules, stale conditions, and patterns in memory.
+If action is needed, produce a plan. If not, explain why in reasoning with empty steps.
 """
 
 CONVERSATION_USER_PROMPT = """User preferences:

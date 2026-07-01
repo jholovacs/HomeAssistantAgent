@@ -111,6 +111,7 @@ async def test_plan_background_calls_llm(planner):
         mission="Keep home efficient",
         preferences="",
         memory="",
+        current_time="2026-07-01 12:00 UTC",
         diff="",
         snapshot="",
         automations="",

@@ -2,19 +2,10 @@
 
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "custom_components"))
 
-from home_assistant_agent.coordinator import StateCoordinator, entity_allowed
-
-
-def test_has_pending_changes_reads_coordinator_data():
-    coordinator = StateCoordinator(MagicMock(), {})
-    coordinator.data = {"has_changes": True}
-    assert coordinator.has_pending_changes() is True
-    coordinator.data = {"has_changes": False}
-    assert coordinator.has_pending_changes() is False
+from home_assistant_agent.coordinator import entity_allowed
 
 
 def test_entity_allowed_with_include():

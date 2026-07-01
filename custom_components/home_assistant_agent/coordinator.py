@@ -151,11 +151,6 @@ class StateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         return {"entities": changes}
 
-    def has_pending_changes(self) -> bool:
-        """Return True when the latest snapshot has entity state changes."""
-        data = self.data or {}
-        return bool(data.get("has_changes"))
-
     def format_snapshot_for_prompt(self, max_entities: int = 80) -> str:
         """Format snapshot as text for LLM context."""
         data = self.data or {}
@@ -174,7 +169,10 @@ class StateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         diff = data.get("diff", {})
         changes = diff.get("entities", [])
         if not changes:
-            return "No significant state changes since last check."
+            return (
+                "No entity state changes since last check. "
+                "Still evaluate the mission for proactive improvements."
+            )
         lines = []
         for change in changes[:50]:
             eid = change.get("entity_id", "")

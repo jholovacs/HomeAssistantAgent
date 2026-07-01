@@ -20,7 +20,6 @@ def _make_loop(checkpoint: CheckpointStore) -> AgentLoop:
     coordinator.format_snapshot_for_prompt.return_value = "snapshot"
     coordinator.format_diff_for_prompt.return_value = "diff"
     coordinator.format_list_for_prompt.return_value = "list"
-    coordinator.has_pending_changes.return_value = True
     planner = MagicMock()
     executor = MagicMock()
     executor.describe_step.return_value = "light.turn_on on light.kitchen"
@@ -48,18 +47,27 @@ def _make_loop(checkpoint: CheckpointStore) -> AgentLoop:
 
 
 @pytest.mark.asyncio
-async def test_run_background_skips_without_state_changes():
+async def test_run_background_runs_without_state_changes():
     hass = MagicMock()
     checkpoint = CheckpointStore(hass, "entry")
     checkpoint._store.async_load = AsyncMock(return_value=None)
     loop = _make_loop(checkpoint)
-    loop._coordinator.has_pending_changes.return_value = False
-    loop._planner.plan_background = AsyncMock()
+    loop._planner.plan_background = AsyncMock(
+        return_value=AgentPlan(
+            reasoning="All good",
+            steps=[],
+            notify_user=False,
+            response_text="",
+            summary_for_memory="",
+        )
+    )
+    loop._execute_plan = AsyncMock(
+        return_value=MagicMock(success=True, steps_executed=[], response_text="")
+    )
 
-    result = await loop.run_background()
+    await loop.run_background()
 
-    assert result is None
-    loop._planner.plan_background.assert_not_called()
+    loop._planner.plan_background.assert_awaited_once()
 
 
 @pytest.mark.asyncio

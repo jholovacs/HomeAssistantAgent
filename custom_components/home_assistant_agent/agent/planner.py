@@ -91,6 +91,7 @@ class Planner:
         mission: str,
         preferences: str,
         memory: str,
+        current_time: str,
         diff: str,
         snapshot: str,
         automations: str,
@@ -102,6 +103,7 @@ class Planner:
         user = BACKGROUND_USER_PROMPT.format(
             preferences=preferences or "None recorded.",
             memory=memory,
+            current_time=current_time,
             diff=diff,
             snapshot=snapshot,
             automations=automations,
