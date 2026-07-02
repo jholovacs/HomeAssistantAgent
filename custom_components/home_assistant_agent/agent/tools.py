@@ -1,5 +1,11 @@
 """Tool/service definitions exposed to the LLM."""
 
+# The integration sends user notifications itself; do not let the LLM call these.
+BLOCKED_SERVICE_PREFIXES = (
+    "notify.",
+    "persistent_notification.",
+)
+
 ALLOWED_SERVICE_PREFIXES = (
     "light.",
     "switch.",
@@ -28,6 +34,8 @@ def is_allowed_service(service: str, *, admin_mode: bool = False) -> bool:
     from ..const import BLOCKED_DOMAINS
 
     if domain in BLOCKED_DOMAINS:
+        return False
+    if any(service.startswith(prefix) for prefix in BLOCKED_SERVICE_PREFIXES):
         return False
     if admin_mode:
         return True

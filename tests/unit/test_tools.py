@@ -30,6 +30,12 @@ def test_admin_mode_allows_any_domain_except_blocked():
     assert is_allowed_service("todo.add_item", admin_mode=True)
     assert not is_allowed_service("homeassistant.restart", admin_mode=True)
     assert not is_allowed_service("hassio.host_shutdown", admin_mode=True)
+    assert not is_allowed_service("notify.mobile_app", admin_mode=True)
+
+
+def test_blocked_notify_service():
+    assert not is_allowed_service("notify.mobile_app")
+    assert not is_allowed_service("persistent_notification.create")
 
 
 def test_non_allowlisted_domain_blocked_without_admin_mode():

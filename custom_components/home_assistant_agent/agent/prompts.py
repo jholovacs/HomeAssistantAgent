@@ -10,7 +10,7 @@ PLAN_JSON_SCHEMA = """{
       "expected": {"entity_id": "entity.id", "state": "on"} or {}
     }
   ],
-  "notify_user": true,
+  "notify_user": false,
   "response_text": "string - natural language reply for user conversations",
   "summary_for_memory": "string - brief note for future context"
 }"""
@@ -25,7 +25,7 @@ Rules:
 - Each step must include expected state for verification when targeting an entity.
 - Only act on entity_id values that appear in the provided home context.
 - If a device is not listed in context, do not invent entity names.
-- notify_user should be true when you take significant actions or detect anomalies.
+- notify_user is almost always false. The integration notifies the user automatically when it executes home actions or hits failures. Never use notify.* services in steps.
 
 {mode_rules}
 
@@ -38,7 +38,7 @@ ADMIN_MODE_RULES = """Admin mode is ENABLED:
 - You can see all entities except those matching exclude patterns in the context."""
 
 RESTRICTED_MODE_RULES = """Standard mode (restricted):
-- Only use services in these domains: light, switch, cover, climate, fan, lock, media_player, scene, script, automation, input_boolean, input_select, notify, vacuum, water_heater, humidifier, valve.
+- Only use services in these domains: light, switch, cover, climate, fan, lock, media_player, scene, script, automation, input_boolean, input_select, vacuum, water_heater, humidifier, valve.
 - Only act on entities present in the provided context (respect entity include filters)."""
 
 
@@ -77,6 +77,7 @@ Scripts:
 This is a periodic proactive evaluation. Review the mission even when no entity states changed.
 Look for improvements related to comfort, safety, efficiency, schedules, stale conditions, and patterns in memory.
 If action is needed, produce a plan. If not, explain why in reasoning with empty steps.
+Do not notify the user about routine all-clear checks; use empty steps and notify_user false.
 """
 
 CONVERSATION_USER_PROMPT = """User preferences:

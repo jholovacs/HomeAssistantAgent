@@ -98,6 +98,20 @@ class AgentLoop:
     def _mark_activity_ended(self) -> None:
         self._last_activity_ended_at = self._now()
 
+    def _should_send_summary_notification(
+        self,
+        *,
+        run_type: str,
+        steps_executed: list[str],
+    ) -> bool:
+        """Return True when a post-run summary notification is warranted."""
+        if not steps_executed:
+            return False
+        # Conversation replies are delivered via Assist; skip duplicate notifications.
+        if run_type == "conversation":
+            return False
+        return True
+
     def _is_fatal_step_error(self, message: str) -> bool:
         """Return True when retrying the step cannot succeed."""
         lowered = message.lower()
@@ -346,11 +360,10 @@ class AgentLoop:
 
             if not step_success:
                 overall_success = False
-                if plan.notify_user or steps_executed:
-                    await self._notifier.notify_significant(
-                        title="Home Assistant Agent",
-                        message=f"Action failed after retries: {last_error}",
-                    )
+                await self._notifier.notify_significant(
+                    title="Home Assistant Agent",
+                    message=f"Action failed after retries: {last_error}",
+                )
                 break
 
         if overall_success:
@@ -367,8 +380,10 @@ class AgentLoop:
             )
         await self._memory.add_entry(summary)
 
-        should_notify = plan.notify_user or bool(steps_executed)
-        if should_notify:
+        if self._should_send_summary_notification(
+            run_type=run_type,
+            steps_executed=steps_executed,
+        ):
             notify_msg = plan.response_text or plan.reasoning
             if steps_executed:
                 notify_msg = f"{notify_msg}\n\nActions: {'; '.join(steps_executed)}"
