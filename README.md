@@ -234,6 +234,28 @@ GitHub Actions workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) r
 - **Integration tests** (Home Assistant + mock vLLM in Docker) on every push and PR
 - **README CI status** auto-updated on `main` after successful runs
 
+### Publish a release
+
+Requires [GitHub CLI](https://cli.github.com/) (`gh`) authenticated for this repository.
+
+1. Bump `version` in `custom_components/home_assistant_agent/manifest.json`.
+2. Commit and push to `main`.
+3. Run:
+
+```bash
+make release-check   # validate manifest vs latest GitHub release
+make release         # run unit tests, tag, push, and gh release create
+```
+
+Useful options:
+
+```bash
+make release-dry-run                              # show what would run
+python scripts/publish_release.py --allow-existing-tag -y   # tag exists, publish release only
+```
+
+The release workflow (`.github/workflows/release.yml`) also runs on tag push or manual **Actions → Release → Run workflow**.
+
 ---
 
 ## License

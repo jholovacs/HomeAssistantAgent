@@ -3,10 +3,12 @@
 
 from __future__ import annotations
 
-import json
-import re
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from release_utils import ReleaseError, read_manifest_version, tag_version, normalize_tag  # noqa: E402
 
 
 def main() -> int:
@@ -14,23 +16,21 @@ def main() -> int:
         print("Usage: verify_release_version.py <tag>", file=sys.stderr)
         return 1
 
-    tag = sys.argv[1].removeprefix("v")
-    if not re.fullmatch(r"\d+\.\d+\.\d+", tag):
-        print(f"Invalid release tag format: {sys.argv[1]}", file=sys.stderr)
+    try:
+        normalized = normalize_tag(sys.argv[1])
+        manifest_version = read_manifest_version()
+        version = tag_version(normalized)
+        if manifest_version != version:
+            print(
+                f"manifest.json version {manifest_version!r} does not match tag {version!r}",
+                file=sys.stderr,
+            )
+            return 1
+    except ReleaseError as err:
+        print(str(err), file=sys.stderr)
         return 1
 
-    manifest_path = Path("custom_components/home_assistant_agent/manifest.json")
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    manifest_version = str(manifest.get("version", ""))
-
-    if manifest_version != tag:
-        print(
-            f"manifest.json version {manifest_version!r} does not match tag {tag!r}",
-            file=sys.stderr,
-        )
-        return 1
-
-    print(f"manifest.json version matches tag {tag}")
+    print(f"manifest.json version matches tag {version}")
     return 0
 
 
