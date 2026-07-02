@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v0.4.2)"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -13,19 +19,30 @@ jobs:
     name: Publish GitHub release
     runs-on: ubuntu-latest
     steps:
+      - name: Resolve release tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "name=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ steps.tag.outputs.name }}
 
       - name: Verify manifest version matches tag
-        run: python scripts/verify_release_version.py "${GITHUB_REF_NAME}"
+        run: python scripts/verify_release_version.py "${{ steps.tag.outputs.name }}"
 
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="${GITHUB_REF_NAME#v}"
-          gh release create "${GITHUB_REF_NAME}" \
+          TAG_NAME="${{ steps.tag.outputs.name }}"
+          TAG="${TAG_NAME#v}"
+          gh release create "${TAG_NAME}" \
             --title "Home Assistant Agent ${TAG}" \
             --generate-notes \
             --verify-tag
