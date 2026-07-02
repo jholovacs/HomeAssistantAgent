@@ -21,13 +21,20 @@ from .agent.verifier import Verifier
 from .const import (
     CONF_ANNOUNCE_RELEASES,
     CONF_MISSION_STATEMENT,
+    CONF_MODEL,
+    CONF_NUM_CTX,
     CONF_RESUME_ON_STARTUP,
+    CONF_TEMPERATURE,
     CONF_VLLM_API_KEY,
     CONF_VLLM_REQUEST_TIMEOUT,
     CONF_VLLM_URL,
     CONF_WYOMING_PORT,
     DEFAULT_ANNOUNCE_RELEASES,
+    DEFAULT_MODEL,
+    DEFAULT_NUM_CTX,
+    DEFAULT_TEMPERATURE,
     DEFAULT_VLLM_REQUEST_TIMEOUT,
+    DEFAULT_VLLM_URL,
     DOMAIN,
     migrate_legacy_config,
 )
@@ -61,16 +68,35 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Home Assistant Agent from a config entry."""
     config = _merged_config(entry)
+    migrated_data = migrate_legacy_config(dict(entry.data))
+    if migrated_data != dict(entry.data) or entry.version < 2:
+        hass.config_entries.async_update_entry(entry, data=migrated_data, version=2)
+        config = migrate_legacy_config({**migrated_data, **entry.options})
+
+    vllm_url = config.get(CONF_VLLM_URL, DEFAULT_VLLM_URL)
+    if ":11434" in vllm_url:
+        _LOGGER.warning(
+            "vLLM URL still points at Ollama port 11434 (%s). "
+            "Reconfigure the integration with your vLLM server URL (usually port 8000).",
+            vllm_url,
+        )
 
     llm = VllmClient(
-        config[CONF_VLLM_URL],
-        config["model"],
-        temperature=config.get("temperature", 0.3),
-        num_ctx=config.get("num_ctx", 8192),
+        vllm_url,
+        config.get(CONF_MODEL, DEFAULT_MODEL),
+        temperature=config.get(CONF_TEMPERATURE, DEFAULT_TEMPERATURE),
+        num_ctx=config.get(CONF_NUM_CTX, DEFAULT_NUM_CTX),
         api_key=config.get(CONF_VLLM_API_KEY),
         request_timeout=config.get(CONF_VLLM_REQUEST_TIMEOUT, DEFAULT_VLLM_REQUEST_TIMEOUT),
         session=async_get_clientsession(hass),
     )
+
+    if not await llm.health_check():
+        _LOGGER.warning(
+            "vLLM is not reachable at %s. Conversation and background runs will fail "
+            "until the server is available and settings are correct.",
+            vllm_url,
+        )
 
     memory = MemoryStore(hass, entry.entry_id)
     await memory.async_load()

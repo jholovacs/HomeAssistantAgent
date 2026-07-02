@@ -67,8 +67,10 @@ class HomeAssistantAgentConversationEntity(
         conversation.async_unset_agent(self.hass, self._entry)
         await super().async_will_remove_from_hass()
 
-    async def async_process(
-        self, user_input: conversation.ConversationInput
+    async def _async_handle_message(
+        self,
+        user_input: conversation.ConversationInput,
+        chat_log: conversation.ChatLog,
     ) -> conversation.ConversationResult:
         """Process user input through the agent loop."""
         intent_response = IntentResponse(language=user_input.language)
@@ -77,10 +79,21 @@ class HomeAssistantAgentConversationEntity(
             result = await self._agent_loop.run_conversation(user_input.text)
             speech = result.response_text or "Done."
             intent_response.async_set_speech(speech)
+            chat_log.async_add_assistant_content_without_tools(
+                conversation.AssistantContent(
+                    agent_id=user_input.agent_id,
+                    content=speech,
+                )
+            )
         except Exception as err:
             _LOGGER.exception("Conversation processing failed: %s", err)
-            intent_response.async_set_speech(
-                "Sorry, I encountered an error processing your request."
+            speech = "Sorry, I encountered an error processing your request."
+            intent_response.async_set_speech(speech)
+            chat_log.async_add_assistant_content_without_tools(
+                conversation.AssistantContent(
+                    agent_id=user_input.agent_id,
+                    content=speech,
+                )
             )
 
         return conversation.ConversationResult(

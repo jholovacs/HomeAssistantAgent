@@ -265,11 +265,9 @@ class HomeAssistantAgentConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @callback
     def async_migrate_entry(hass: HomeAssistant, config_entry: config_entries.ConfigEntry):
         """Migrate config entry from Ollama to vLLM keys."""
-        if config_entry.version >= 2:
-            return True
-
-        data = _migrate_legacy_keys(dict(config_entry.data))
-        hass.config_entries.async_update_entry(config_entry, data=data, version=2)
+        data = migrate_legacy_config(dict(config_entry.data))
+        if data != dict(config_entry.data) or config_entry.version < 2:
+            hass.config_entries.async_update_entry(config_entry, data=data, version=2)
         return True
 
     async def async_step_user(self, user_input=None):

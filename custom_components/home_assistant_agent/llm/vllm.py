@@ -9,6 +9,7 @@ from typing import Any
 
 import aiohttp
 
+from ..const import DEFAULT_NUM_CTX, DEFAULT_SUMMARIZE_MAX_TOKENS, MAX_OUTPUT_TOKEN_CAP
 from .base import LLMClient
 from .errors import LLMRequestError, LLMTimeoutError
 from .prompt_log import log_llm_request, log_llm_response
@@ -25,7 +26,7 @@ class VllmClient(LLMClient):
         model: str,
         *,
         temperature: float = 0.3,
-        num_ctx: int = 8192,
+        num_ctx: int = DEFAULT_NUM_CTX,
         api_key: str | None = None,
         request_timeout: int = 600,
         session: aiohttp.ClientSession | None = None,
@@ -33,7 +34,7 @@ class VllmClient(LLMClient):
         self._base_url = base_url.rstrip("/")
         self._model = model
         self._temperature = temperature
-        self._max_tokens = num_ctx
+        self._max_tokens = min(int(num_ctx), MAX_OUTPUT_TOKEN_CAP)
         self._api_key = (api_key or "").strip() or None
         self._request_timeout = request_timeout
         self._session = session
@@ -100,30 +101,10 @@ class VllmClient(LLMClient):
             data = await resp.json()
         return [model["id"] for model in data.get("data", []) if model.get("id")]
 
-    async def chat(
+    async def _post_chat_completion(
         self,
-        messages: list[dict[str, str]],
-        *,
-        json_mode: bool = False,
-    ) -> str:
-        """Send a chat completion request to vLLM."""
-        payload: dict[str, Any] = {
-            "model": self._model,
-            "messages": messages,
-            "temperature": self._temperature,
-            "max_tokens": self._max_tokens,
-            "stream": False,
-        }
-        if json_mode:
-            payload["response_format"] = {"type": "json_object"}
-
-        log_llm_request(
-            _LOGGER,
-            model=self._model,
-            messages=messages,
-            json_mode=json_mode,
-        )
-
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
         session = await self._get_session()
         try:
             async with session.post(
@@ -132,8 +113,12 @@ class VllmClient(LLMClient):
                 headers=self._headers(),
                 timeout=self._chat_timeout(),
             ) as resp:
-                resp.raise_for_status()
-                data = await resp.json()
+                body = await resp.text()
+                if resp.status >= 400:
+                    raise LLMRequestError(
+                        f"vLLM HTTP {resp.status}: {body[:500]}"
+                    )
+                return json.loads(body)
         except (TimeoutError, asyncio.TimeoutError) as err:
             _LOGGER.warning(
                 "vLLM chat timed out after %ss (model=%s, url=%s). "
@@ -154,6 +139,52 @@ class VllmClient(LLMClient):
                 err,
             )
             raise LLMRequestError(str(err)) from err
+
+    async def chat(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        json_mode: bool = False,
+        max_tokens: int | None = None,
+    ) -> str:
+        """Send a chat completion request to vLLM."""
+        effective_max_tokens = (
+            min(int(max_tokens), MAX_OUTPUT_TOKEN_CAP)
+            if max_tokens is not None
+            else self._max_tokens
+        )
+        payload: dict[str, Any] = {
+            "model": self._model,
+            "messages": messages,
+            "temperature": self._temperature,
+            "max_tokens": effective_max_tokens,
+            "stream": False,
+        }
+        if json_mode:
+            payload["response_format"] = {"type": "json_object"}
+
+        log_llm_request(
+            _LOGGER,
+            model=self._model,
+            messages=messages,
+            json_mode=json_mode,
+        )
+
+        try:
+            data = await self._post_chat_completion(payload)
+        except LLMRequestError as err:
+            if json_mode and "HTTP 400" in str(err):
+                _LOGGER.warning(
+                    "vLLM rejected structured JSON output; retrying without "
+                    "response_format: %s",
+                    err,
+                )
+                return await self.chat(
+                    messages,
+                    json_mode=False,
+                    max_tokens=effective_max_tokens,
+                )
+            raise
 
         choices = data.get("choices") or []
         if not choices:
@@ -184,7 +215,11 @@ class VllmClient(LLMClient):
             },
             {"role": "user", "content": text},
         ]
-        return await self.chat(messages, json_mode=False)
+        return await self.chat(
+            messages,
+            json_mode=False,
+            max_tokens=DEFAULT_SUMMARIZE_MAX_TOKENS,
+        )
 
     def parse_json_response(self, content: str) -> dict[str, Any]:
         """Parse JSON from LLM response, stripping markdown fences if present."""
