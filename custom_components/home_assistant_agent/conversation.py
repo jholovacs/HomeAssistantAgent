@@ -17,6 +17,8 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
+_HAS_CHAT_LOG = hasattr(conversation, "async_get_chat_log")
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -67,33 +69,46 @@ class HomeAssistantAgentConversationEntity(
         conversation.async_unset_agent(self.hass, self._entry)
         await super().async_will_remove_from_hass()
 
+    async def _run_agent_turn(self, text: str) -> str:
+        """Execute one user turn through the agent loop."""
+        result = await self._agent_loop.run_conversation(text)
+        return result.response_text or "Done."
+
     async def _async_handle_message(
         self,
         user_input: conversation.ConversationInput,
         chat_log: conversation.ChatLog,
     ) -> conversation.ConversationResult:
-        """Process user input through the agent loop."""
-        intent_response = IntentResponse(language=user_input.language)
-
+        """Process user input through the agent loop (chat_log API)."""
         try:
-            result = await self._agent_loop.run_conversation(user_input.text)
-            speech = result.response_text or "Done."
-            intent_response.async_set_speech(speech)
-            chat_log.async_add_assistant_content_without_tools(
-                conversation.AssistantContent(
-                    agent_id=user_input.agent_id,
-                    content=speech,
-                )
-            )
+            speech = await self._run_agent_turn(user_input.text)
         except Exception as err:
             _LOGGER.exception("Conversation processing failed: %s", err)
             speech = "Sorry, I encountered an error processing your request."
+
+        chat_log.async_add_assistant_content_without_tools(
+            conversation.AssistantContent(
+                agent_id=user_input.agent_id,
+                content=speech,
+            )
+        )
+        return conversation.async_get_result_from_chat_log(user_input, chat_log)
+
+    async def async_process(
+        self, user_input: conversation.ConversationInput
+    ) -> conversation.ConversationResult:
+        """Process user input (delegates to chat_log API when available)."""
+        if _HAS_CHAT_LOG:
+            return await super().async_process(user_input)
+
+        intent_response = IntentResponse(language=user_input.language)
+        try:
+            speech = await self._run_agent_turn(user_input.text)
             intent_response.async_set_speech(speech)
-            chat_log.async_add_assistant_content_without_tools(
-                conversation.AssistantContent(
-                    agent_id=user_input.agent_id,
-                    content=speech,
-                )
+        except Exception as err:
+            _LOGGER.exception("Conversation processing failed: %s", err)
+            intent_response.async_set_speech(
+                "Sorry, I encountered an error processing your request."
             )
 
         return conversation.ConversationResult(

@@ -1,7 +1,7 @@
 {
   "domain": "home_assistant_agent",
   "name": "Home Assistant Agent",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "config_flow": true,
   "dependencies": ["conversation", "http"],
   "requirements": ["wyoming>=1.5.4", "aiohttp>=3.9"],

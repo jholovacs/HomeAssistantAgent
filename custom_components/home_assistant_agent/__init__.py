@@ -65,13 +65,25 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     return True
 
 
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Migrate config entries (e.g. Ollama v1 keys to vLLM v2)."""
+    if entry.version > 2:
+        _LOGGER.error(
+            "Config entry version %s is newer than supported version 2",
+            entry.version,
+        )
+        return False
+
+    data = migrate_legacy_config(dict(entry.data))
+    if data != dict(entry.data) or entry.version < 2:
+        hass.config_entries.async_update_entry(entry, data=data, version=2)
+
+    return True
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Home Assistant Agent from a config entry."""
     config = _merged_config(entry)
-    migrated_data = migrate_legacy_config(dict(entry.data))
-    if migrated_data != dict(entry.data) or entry.version < 2:
-        hass.config_entries.async_update_entry(entry, data=migrated_data, version=2)
-        config = migrate_legacy_config({**migrated_data, **entry.options})
 
     vllm_url = config.get(CONF_VLLM_URL, DEFAULT_VLLM_URL)
     if ":11434" in vllm_url:
